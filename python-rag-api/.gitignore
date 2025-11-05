@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.python-version
+
+# Virtual envs
+.venv/
+venv/
+ENV/
+
+# Environment & secrets
+.env
+.env.*
+
+# OS/Editor
+.DS_Store
+.idea/
+.vscode/
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build/Dist
+build/
+dist/
+
+# Logs & coverage
+logs/
+*.log
+.coverage
+coverage.xml
+
+# Local vector DB/data
+chroma_db/
+
+# Misc
+*.swp
+*.swo

@@ -3,7 +3,12 @@ Quick Start Example - Get Running in 2 Minutes (Monorepo Version)
 """
 
 import os
+import sys
 from dotenv import load_dotenv
+
+# Ensure project root is on sys.path when running as `python examples/example.py`
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from app.services.rag_system import DocumentRAG
 
 # Step 1: Load OpenAI API key from environment
@@ -16,7 +21,7 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key or openai_api_key == "sk-your-key-here":
     raise ValueError(
         "❌ OpenAI API key not found!\n"
-        "Please set your API key in one of these ways:\n"
+"Please set your API key in one of these ways:\n"
         "1. Environment variable: export OPENAI_API_KEY='sk-...'\n"
         "2. Create a .env file with: OPENAI_API_KEY=sk-...\n"
         "Get your key from: https://platform.openai.com/api-keys"

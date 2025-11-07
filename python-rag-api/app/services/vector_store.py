@@ -75,7 +75,7 @@ class VectorStore:
             if os.path.exists(sqlite_path):
                 with TelemetrySuppressor():
                     self.vectorstore = Chroma(
-                        embedding=self.embedding_service.embeddings,
+                        embedding_function=self.embedding_service.embeddings,
                         persist_directory=persist_dir,
                     )
         except Exception as exc:

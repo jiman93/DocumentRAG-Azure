@@ -4,6 +4,7 @@ Quick Start Example - Get Running in 2 Minutes (Monorepo Version)
 
 import os
 import sys
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Ensure project root is on sys.path when running as `python examples/example.py`
@@ -17,11 +18,15 @@ from app.services.rag_system import DocumentRAG
 # Get your key from: https://platform.openai.com/api-keys
 load_dotenv()  # Load from .env file if it exists
 
+examples_dir = Path(__file__).resolve().parent
+example_persist_dir = examples_dir / "chroma_db"
+example_persist_dir.mkdir(parents=True, exist_ok=True)
+
 openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key or openai_api_key == "sk-your-key-here":
     raise ValueError(
         "❌ OpenAI API key not found!\n"
-"Please set your API key in one of these ways:\n"
+        "Please set your API key in one of these ways:\n"
         "1. Environment variable: export OPENAI_API_KEY='sk-...'\n"
         "2. Create a .env file with: OPENAI_API_KEY=sk-...\n"
         "Get your key from: https://platform.openai.com/api-keys"
@@ -34,16 +39,18 @@ rag = DocumentRAG(
     model="gpt-5-mini",  # Or "gpt-3.5-turbo" for faster/cheaper
     chunk_size=1000,
     chunk_overlap=200,
+    persist_directory=str(example_persist_dir),
 )
 
 # Step 3: Index your documents
 print("\n📚 Indexing documents...")
+
 # Use the bundled mock PDF in examples/assets
-pdf_path = os.path.join(
-    os.path.dirname(__file__),
-    "assets/Impact-Study-of-Artificial-Intelligence-Digital-and-Green-Economy-on-the-Malaysian-Workforce-Volume-2-Sector-Global-Business-Services-1747879429.pdf",
+pdf_path = (
+    examples_dir
+    / "assets/Impact-Study-of-Artificial-Intelligence-Digital-and-Green-Economy-on-the-Malaysian-Workforce-Volume-2-Sector-Global-Business-Services-1747879429.pdf"
 )
-rag.index_documents([pdf_path])
+rag.index_documents([str(pdf_path)])
 
 # Step 4: Ask questions!
 print("\n💬 Querying knowledge base...")

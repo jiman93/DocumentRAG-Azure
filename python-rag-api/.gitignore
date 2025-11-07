@@ -40,3 +40,8 @@ chroma_db/
 # Misc
 *.swp
 *.swo
+
+# Examples
+examples/assets/
+metadata.db
+*.db

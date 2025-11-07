@@ -1,11 +1,41 @@
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# LangChain & AI
 langchain>=1.0.0
 langchain-openai>=1.0.0
 langchain-community>=0.4.0
+langchain-classic>=0.1.0
 openai>=2.0.0
+
+# Vector Store
 chromadb==0.4.22
-tiktoken==0.7.0
-pypdf==3.17.4
-python-docx==1.1.0
-docx2txt==0.8
-rich==13.7.0
-python-dotenv==1.0.0
+numpy<2.0  # ChromaDB compatibility
+
+# Document Processing
+pypdf>=3.17.0
+python-docx>=1.1.0
+docx2txt>=0.8
+unstructured>=0.10.0
+
+# Azure SDK
+azure-search-documents>=11.4.0
+azure-storage-blob>=12.19.0
+azure-cosmos>=4.5.0
+azure-identity>=1.15.0
+
+# Configuration & Utilities
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+tiktoken>=0.7.0
+
+# UI & Logging
+rich>=13.7.0
+
+# Testing (optional)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.25.0

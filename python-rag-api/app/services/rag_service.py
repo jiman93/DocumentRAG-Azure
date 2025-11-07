@@ -2,6 +2,7 @@
 RAG service - orchestrates document processing, retrieval, and generation
 """
 
+import logging
 import os
 import time
 from datetime import datetime
@@ -19,6 +20,9 @@ from app.utils.confidence_calculator import ImprovedConfidenceCalculator
 from app.models.chat import RAGQueryRequest, RAGQueryResponse, Citation, ChatMessage
 from app.models.document import DocumentMetadata, DocumentStatus
 from app.utils.file_utils import generate_document_id, generate_chunk_id
+
+
+logger = logging.getLogger("document_rag_api")
 
 
 class RAGService:
@@ -184,7 +188,7 @@ class RAGService:
         ]
 
         # Step 4: Generate response
-        answer = self._generate_answer(
+        answer, prompt_inputs = self._generate_answer(
             question=request.question,
             context_docs=scored_docs,
             temperature=request.temperature,
@@ -213,6 +217,35 @@ class RAGService:
         total_time_ms = (time.time() - start_time) * 1000
         estimated_cost = self._estimate_cost(len(scored_docs), len(answer))
 
+        # Summaries for logging / metadata
+        retrieved_summary = [
+            {
+                "document_id": doc.metadata.get("document_id"),
+                "source": doc.metadata.get(
+                    "document_name", doc.metadata.get("source_file")
+                ),
+                "score": doc.metadata.get("score"),
+                "preview": doc.page_content[:200],
+            }
+            for doc in scored_docs
+        ]
+
+        logger.info(
+            "Query processed | top_k=%s | retrieved=%s",
+            request.top_k,
+            len(scored_docs),
+        )
+        for idx, doc_meta in enumerate(retrieved_summary, start=1):
+            logger.debug("Retrieved[%s]: %s", idx, doc_meta)
+
+        response_metadata = {
+            "retrieved_documents": retrieved_summary,
+            "prompt": {
+                "question": prompt_inputs["question"],
+                "context_preview": prompt_inputs["context"][:500],
+            },
+        }
+
         return RAGQueryResponse(
             answer=answer,
             citations=citations,
@@ -222,6 +255,7 @@ class RAGService:
             chunks_used=len(scored_docs),
             total_time_ms=total_time_ms,
             estimated_cost=estimated_cost,
+            metadata=response_metadata,
         )
 
     def _enhance_query(
@@ -260,8 +294,8 @@ class RAGService:
         context_docs: List,
         temperature: float = 0.3,
         stream: bool = False,
-    ) -> str:
-        """Generate answer using LLM"""
+    ) -> tuple[str, Dict[str, str]]:
+        """Generate answer using LLM and return prompt inputs for tracking"""
         # Build context
         context = "\n\n".join(
             [
@@ -269,6 +303,11 @@ class RAGService:
                 for i, doc in enumerate(context_docs)
             ]
         )
+
+        prompt_inputs = {
+            "context": context,
+            "question": question,
+        }
 
         # Create prompt
         prompt_template = PromptTemplate(
@@ -288,28 +327,21 @@ Answer:""",
 
         if stream:
             # Streaming response
-            response = chain.stream(
-                {
-                    "context": context,
-                    "question": question,
-                }
-            )
+            response = chain.stream(prompt_inputs)
             # For streaming, we'd need to handle this differently
             # For now, collect all chunks
             answer_parts = []
             for chunk in response:
                 if hasattr(chunk, "content"):
                     answer_parts.append(chunk.content)
-            return "".join(answer_parts)
+            return "".join(answer_parts), prompt_inputs
         else:
             # Non-streaming response
-            response = chain.invoke(
-                {
-                    "context": context,
-                    "question": question,
-                }
+            response = chain.invoke(prompt_inputs)
+            answer_text = (
+                response.content if hasattr(response, "content") else str(response)
             )
-            return response.content if hasattr(response, "content") else str(response)
+            return answer_text, prompt_inputs
 
     def _generate_citations(self, documents: List) -> List[Citation]:
         """Generate citations from retrieved documents"""

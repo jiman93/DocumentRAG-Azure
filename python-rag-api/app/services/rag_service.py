@@ -195,7 +195,8 @@ class RAGService:
         confidence_score = self.confidence_calculator.calculate_confidence(
             query=request.question,
             answer=answer,
-            retrieved_docs=scored_docs,
+            retrieved_docs=relevant_docs,
+            used_docs=scored_docs,
         )
 
         # Step 6: Generate citations

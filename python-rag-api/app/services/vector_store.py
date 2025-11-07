@@ -69,7 +69,21 @@ class VectorStore:
         """Initialize ChromaDB vector store"""
         persist_dir = settings.chroma_persist_directory
         os.makedirs(persist_dir, exist_ok=True)
-        # Vector store will be created when documents are added
+        # Load existing vector store if it exists
+        sqlite_path = os.path.join(persist_dir, "chroma.sqlite3")
+        try:
+            if os.path.exists(sqlite_path):
+                with TelemetrySuppressor():
+                    self.vectorstore = Chroma(
+                        embedding=self.embedding_service.embeddings,
+                        persist_directory=persist_dir,
+                    )
+        except Exception as exc:
+            warnings.warn(
+                f"Failed to load existing ChromaDB at {persist_dir}: {exc}. "
+                "A new vector store will be created when documents are added.",
+                RuntimeWarning,
+            )
     
     def add_documents(
         self,

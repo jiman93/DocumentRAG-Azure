@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 # Ensure project root is on sys.path when running as `python examples/example.py`
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from app.services.rag_system import DocumentRAG
+# Import from local rag_system.py (legacy implementation for examples)
+from rag_system import DocumentRAG
 
 # Step 1: Load OpenAI API key from environment
 # Option 1: export OPENAI_API_KEY='sk-...'

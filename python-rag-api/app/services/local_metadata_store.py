@@ -221,6 +221,50 @@ class LocalMetadataStore:
             print(f"Error saving conversation to local store: {e}")
             return False
 
+    def append_conversation_messages(
+        self, conversation_id: str, messages: List[dict]
+    ) -> bool:
+        """Append messages to an existing conversation"""
+        if not messages:
+            return True
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    "SELECT messages FROM conversations WHERE conversation_id = ?",
+                    (conversation_id,),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return False
+
+                existing_messages = json.loads(row["messages"] or "[]")
+                existing_messages.extend(messages)
+
+                updated_at = datetime.utcnow().isoformat()
+                cursor.execute(
+                    """
+                    UPDATE conversations
+                    SET messages = ?, message_count = ?, updated_at = ?
+                    WHERE conversation_id = ?
+                    """,
+                    (
+                        json.dumps(existing_messages),
+                        len(existing_messages),
+                        updated_at,
+                        conversation_id,
+                    ),
+                )
+
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"Error appending messages to conversation: {e}")
+            return False
+
     def get_conversation(self, conversation_id: str) -> Optional[dict]:
         """Get conversation by ID"""
         try:

@@ -358,3 +358,37 @@ class StorageService:
         except Exception as e:
             print(f"Error getting conversation: {e}")
             return None
+
+    def append_conversation_messages(
+        self,
+        conversation_id: str,
+        messages: List[Dict[str, Any]],
+    ) -> bool:
+        """Append messages to an existing conversation"""
+        if self.use_local_storage:
+            return self.local_store.append_conversation_messages(
+                conversation_id, messages
+            )
+
+        if not self.conversations_container:
+            return False
+
+        try:
+            conversation = self.get_conversation(conversation_id)
+            if not conversation:
+                return False
+
+            existing_messages = conversation.get("messages", [])
+            existing_messages.extend(messages)
+
+            conversation["messages"] = existing_messages
+            conversation["message_count"] = len(existing_messages)
+            conversation["updated_at"] = datetime.utcnow().isoformat()
+
+            conversation["id"] = conversation_id
+            conversation["_partitionKey"] = conversation_id
+            self.conversations_container.upsert_item(conversation)
+            return True
+        except Exception as e:
+            print(f"Error appending conversation messages: {e}")
+            return False

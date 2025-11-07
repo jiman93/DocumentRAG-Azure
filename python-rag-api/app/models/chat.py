@@ -33,6 +33,10 @@ class RAGQueryRequest(BaseModel):
     """Request for RAG query"""
 
     question: str = Field(..., description="User question", min_length=1)
+    conversation_id: Optional[str] = Field(
+        default=None,
+        description="Existing conversation ID to append messages to",
+    )
     conversation_history: Optional[List[ChatMessage]] = Field(
         default=None, description="Previous conversation messages"
     )
@@ -47,6 +51,14 @@ class RAGQueryRequest(BaseModel):
     filters: Optional[Dict[str, Any]] = Field(
         default=None, description="Optional filters for document search"
     )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "question": "What are the main topics covered?",
+                "conversation_id": "613f0134-52ea-48b3-a0eb-08337eee7c19",
+            }
+        }
 
 
 class RAGQueryResponse(BaseModel):

@@ -246,6 +246,25 @@ class RAGService:
             },
         }
 
+        if request.conversation_id:
+            message_timestamp = datetime.utcnow().isoformat()
+            conversation_messages = [
+                {
+                    "role": "user",
+                    "content": request.question,
+                    "timestamp": message_timestamp,
+                },
+                {
+                    "role": "assistant",
+                    "content": answer,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "metadata": response_metadata,
+                },
+            ]
+            self.storage_service.append_conversation_messages(
+                request.conversation_id, conversation_messages
+            )
+
         return RAGQueryResponse(
             answer=answer,
             citations=citations,

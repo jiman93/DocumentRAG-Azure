@@ -21,7 +21,7 @@ import sys
 from contextlib import redirect_stderr
 from io import StringIO
 
-# Import from app.services (project root is added to sys.path by example.py)
+# Import from app.utils (project root is added to sys.path by example.py)
 # If running this file directly, ensure project root is on sys.path
 if __name__ == "__main__":
     # Add project root to path if not already there
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
-from app.services.improved_confidence_calculator import ImprovedConfidenceCalculator
+from app.utils.confidence_calculator import ImprovedConfidenceCalculator
 
 # Disable telemetry for ChromaDB and LangChain BEFORE imports
 os.environ["ANONYMIZED_TELEMETRY"] = "False"

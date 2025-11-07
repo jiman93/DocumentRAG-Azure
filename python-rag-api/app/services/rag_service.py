@@ -15,7 +15,7 @@ from app.services.document_processor import DocumentProcessor
 from app.services.embedding_service import EmbeddingService
 from app.services.vector_store import VectorStore
 from app.services.storage_service import StorageService
-from app.services.improved_confidence_calculator import ImprovedConfidenceCalculator
+from app.utils.confidence_calculator import ImprovedConfidenceCalculator
 from app.models.chat import RAGQueryRequest, RAGQueryResponse, Citation, ChatMessage
 from app.models.document import DocumentMetadata, DocumentStatus
 from app.utils.file_utils import generate_document_id, generate_chunk_id

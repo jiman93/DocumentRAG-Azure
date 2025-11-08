@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     azure_openai_deployment_name: str = "gpt-4"
     azure_openai_embedding_deployment: str = "text-embedding-3-large"
     azure_openai_api_version: str = "2024-02-01"
+    azure_openai_chat_api_version: Optional[str] = None
+    azure_openai_embedding_api_version: Optional[str] = None
     
     # OpenAI Configuration (fallback)
     openai_api_key: Optional[str] = None
@@ -75,11 +77,14 @@ class Settings(BaseSettings):
     def get_openai_config(self) -> dict:
         """Get OpenAI configuration (Azure or standard)"""
         if self.azure_openai_endpoint and self.azure_openai_api_key:
+            chat_api_version = (
+                self.azure_openai_chat_api_version or self.azure_openai_api_version
+            )
             return {
                 "api_type": "azure",
                 "api_base": self.azure_openai_endpoint,
                 "api_key": self.azure_openai_api_key,
-                "api_version": self.azure_openai_api_version,
+                "api_version": chat_api_version,
                 "deployment_name": self.azure_openai_deployment_name,
             }
         elif self.openai_api_key:
@@ -96,10 +101,14 @@ class Settings(BaseSettings):
     def get_embedding_config(self) -> dict:
         """Get embedding configuration"""
         if self.azure_openai_endpoint and self.azure_openai_api_key:
+            embedding_api_version = (
+                self.azure_openai_embedding_api_version
+                or self.azure_openai_api_version
+            )
             return {
                 "azure_endpoint": self.azure_openai_endpoint,
                 "azure_api_key": self.azure_openai_api_key,
-                "azure_api_version": self.azure_openai_api_version,
+                "api_version": embedding_api_version,
                 "azure_deployment": self.azure_openai_embedding_deployment,
             }
         elif self.openai_api_key:

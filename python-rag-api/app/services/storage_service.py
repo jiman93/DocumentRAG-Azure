@@ -169,7 +169,7 @@ class StorageService:
 
         try:
             # Convert to dict
-            doc_dict = document_metadata.model_dump()
+            doc_dict = document_metadata.model_dump(mode="json")
             doc_dict["id"] = document_metadata.document_id
             doc_dict["_partitionKey"] = document_metadata.document_id
 

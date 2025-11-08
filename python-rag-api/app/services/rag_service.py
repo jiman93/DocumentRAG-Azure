@@ -7,7 +7,7 @@ import os
 import time
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
@@ -63,11 +63,11 @@ class RAGService:
 
         if "api_type" in openai_config and openai_config["api_type"] == "azure":
             # Azure OpenAI
-            self.llm = ChatOpenAI(
+            self.llm = AzureChatOpenAI(
+                api_key=openai_config["api_key"],
                 azure_endpoint=openai_config["api_base"],
                 azure_deployment=openai_config["deployment_name"],
-                openai_api_version=openai_config["api_version"],
-                openai_api_key=openai_config["api_key"],
+                api_version=openai_config["api_version"],
                 temperature=settings.temperature_default,
                 max_tokens=settings.max_tokens,
             )

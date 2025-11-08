@@ -3,6 +3,7 @@ Vector store service - handles vector storage and retrieval
 Supports ChromaDB (local) and Azure AI Search
 """
 import json
+import logging
 import os
 import sys
 import uuid
@@ -16,6 +17,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
+    HnswAlgorithmConfiguration,
     HnswParameters,
     SearchField,
     SearchFieldDataType,
@@ -24,15 +26,17 @@ from azure.search.documents.indexes.models import (
     SimpleField,
     VectorSearch,
     VectorSearchProfile,
-    VectorSearchAlgorithmConfiguration,
 )
-from azure.search.documents.models import Vector
+from azure.search.documents.models import VectorizedQuery
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 
 from app.core.config import settings
 from app.services.embedding_service import EmbeddingService
 
+
+# Module logger
+logger = logging.getLogger("document_rag_api")
 
 # Disable telemetry
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -130,9 +134,8 @@ class VectorStore:
             
             vector_search = VectorSearch(
                 algorithms=[
-                    VectorSearchAlgorithmConfiguration(
+                    HnswAlgorithmConfiguration(
                         name="default",
-                        kind="hnsw",
                         parameters=HnswParameters(metric="cosine"),
                     )
                 ],
@@ -156,7 +159,6 @@ class VectorStore:
                     ),
                     SearchableField(
                         name="content",
-                        type=SearchFieldDataType.String,
                     ),
                     SimpleField(
                         name="chunk_index",
@@ -170,17 +172,17 @@ class VectorStore:
                         vector_search_profile_name="default",
                         vector_search_dimensions=self._azure_dimensions,
                     ),
-                    SearchableField(
+                    SimpleField(
                         name="source",
                         type=SearchFieldDataType.String,
                         filterable=True,
-                        retrievable=True,
                     ),
-                    SearchableField(
+                    SimpleField(
                         name="metadata_json",
                         type=SearchFieldDataType.String,
                         filterable=False,
-                        retrievable=True,
+                        sortable=False,
+                        facetable=False,
                     ),
                 ],
                 vector_search=vector_search,
@@ -199,6 +201,83 @@ class VectorStore:
             )
             if vector_field:
                 self._azure_dimensions = vector_field.vector_search_dimensions
+            # Ensure schema contains required fields; if not, recreate index
+            required_field_names = {
+                "id",
+                "document_id",
+                "content",
+                "chunk_index",
+                "contentVector",
+                "source",
+                "metadata_json",
+            }
+            existing_field_names = {field.name for field in index.fields}
+            if not required_field_names.issubset(existing_field_names):
+                logger.warning(
+                    "Azure Search index '%s' missing required fields (%s). Recreating index.",
+                    index_name,
+                    required_field_names - existing_field_names,
+                )
+                index_client.delete_index(index_name)
+                self._azure_dimensions = len(self.embedding_service.embed_text("dimension probe"))
+                vector_search = VectorSearch(
+                    algorithms=[
+                HnswAlgorithmConfiguration(
+                            name="default",
+                            parameters=HnswParameters(metric="cosine"),
+                        )
+                    ],
+                    profiles=[
+                        VectorSearchProfile(
+                            name="default",
+                            algorithm_configuration_name="default",
+                        )
+                    ],
+                )
+                index = SearchIndex(
+                    name=index_name,
+                    fields=[
+                        SimpleField(name="id", type=SearchFieldDataType.String, key=True),
+                        SimpleField(
+                            name="document_id",
+                            type=SearchFieldDataType.String,
+                            filterable=True,
+                            sortable=False,
+                            facetable=False,
+                        ),
+                        SearchableField(
+                            name="content",
+                        ),
+                        SimpleField(
+                            name="chunk_index",
+                            type=SearchFieldDataType.Int32,
+                            filterable=True,
+                            sortable=True,
+                        ),
+                        SearchField(
+                            name="contentVector",
+                            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                            vector_search_profile_name="default",
+                            vector_search_dimensions=self._azure_dimensions,
+                        ),
+                        SimpleField(
+                            name="source",
+                            type=SearchFieldDataType.String,
+                            filterable=True,
+                            sortable=False,
+                            facetable=False,
+                        ),
+                        SimpleField(
+                            name="metadata_json",
+                            type=SearchFieldDataType.String,
+                            filterable=False,
+                            sortable=False,
+                            facetable=False,
+                        ),
+                    ],
+                    vector_search=vector_search,
+                )
+                index_client.create_index(index)
     
     def add_documents(
         self,
@@ -306,10 +385,9 @@ class VectorStore:
         Returns:
             List of relevant documents
         """
-        if self.vectorstore is None:
-            raise ValueError("Vector store not initialized. Add documents first.")
-        
         if self.vector_store_type == "chroma":
+            if self.vectorstore is None:
+                raise ValueError("Vector store not initialized. Add documents first.")
             with TelemetrySuppressor():
                 return self.vectorstore.similarity_search(
                     query=query,
@@ -338,10 +416,9 @@ class VectorStore:
         Returns:
             List of (document, score) tuples
         """
-        if self.vectorstore is None:
-            raise ValueError("Vector store not initialized. Add documents first.")
-        
         if self.vector_store_type == "chroma":
+            if self.vectorstore is None:
+                raise ValueError("Vector store not initialized. Add documents first.")
             with TelemetrySuppressor():
                 return self.vectorstore.similarity_search_with_score(
                     query=query,
@@ -383,6 +460,16 @@ class VectorStore:
         else:
             raise NotImplementedError(f"Retriever not implemented for {self.vector_store_type}")
     
+    def is_initialized(self) -> bool:
+        """
+        Check whether the underlying vector backend is ready to serve queries.
+        """
+        if self.vector_store_type == "chroma":
+            return self.vectorstore is not None
+        if self.vector_store_type == "azure_search":
+            return self.search_client is not None
+        return False
+    
     def delete_documents(self, document_ids: List[str]) -> bool:
         """
         Delete documents from vector store
@@ -420,7 +507,11 @@ class VectorStore:
             self._azure_dimensions = len(self.embedding_service.embed_text("dimension probe"))
         
         query_embedding = self.embedding_service.embed_text(query)
-        vector = Vector(value=query_embedding, fields="contentVector", k=k)
+        vector_query = VectorizedQuery(
+            vector=query_embedding,
+            k_nearest_neighbors=k,
+            fields="contentVector",
+        )
         
         azure_filter = None
         if filter:
@@ -434,8 +525,8 @@ class VectorStore:
                 azure_filter = " and ".join(parts)
         
         results = self.search_client.search(
-            search_text="",
-            vector=vector,
+            search_text=None,
+            vector_queries=[vector_query],
             filter=azure_filter,
             select=["id", "document_id", "content", "chunk_index", "source", "metadata_json"],
         )
@@ -447,14 +538,24 @@ class VectorStore:
                 "chunk_index": result.get("chunk_index"),
                 "chunk_id": result.get("id"),
                 "source_file": result.get("source"),
-                "score": result["@search.score"],
+                "score": result.get("@search.score"),
             }
             metadata_json = result.get("metadata_json")
             if metadata_json:
                 try:
-                    metadata.update(json.loads(metadata_json))
+                    parsed_metadata = json.loads(metadata_json)
+                    if isinstance(parsed_metadata, dict):
+                        metadata.update(parsed_metadata)
                 except json.JSONDecodeError:
                     pass
+
+            # Ensure document_id exists and is string-typed for downstream validation
+            document_id = metadata.get("document_id") or result.get("document_id")
+            if not document_id:
+                document_id = metadata.get("source_document_id") or metadata.get("chunk_id")
+            if document_id is not None:
+                metadata["document_id"] = str(document_id)
+
             documents.append(
                 Document(
                     page_content=result.get("content", ""),
@@ -478,5 +579,7 @@ class _AzureSearchRetriever:
     
     def is_initialized(self) -> bool:
         """Check if vector store is initialized"""
-        return self.vectorstore is not None
+        if self.store.vector_store_type == "chroma":
+            return self.store.vectorstore is not None
+        return self.store.search_client is not None
 

@@ -10,12 +10,12 @@ param location string
 ])
 param skuName string = 'S0'
 
-@description('Optional network mode setting. Set to "Open" for public network access or "Disabled" to restrict.')
+@description('Optional network ACL default action. Use "Allow" to enable public access or "Deny" to restrict.')
 @allowed([
-  'Open'
-  'Disabled'
+  'Allow'
+  'Deny'
 ])
-param networkAclsDefaultAction string = 'Open'
+param networkAclsDefaultAction string = 'Allow'
 
 @description('Optional tags to apply to the resource')
 param tags object = {}
@@ -32,7 +32,7 @@ resource openAiAccount 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
     networkAcls: {
       defaultAction: networkAclsDefaultAction
     }
-    publicNetworkAccess: networkAclsDefaultAction == 'Open' ? 'Enabled' : 'Disabled'
+    publicNetworkAccess: networkAclsDefaultAction == 'Allow' ? 'Enabled' : 'Disabled'
   }
 }
 

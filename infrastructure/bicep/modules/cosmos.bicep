@@ -44,6 +44,14 @@ param conversationsPartitionKey string = '/conversation_id'
 @description('Optional tags to apply to the account')
 param tags object = {}
 
+var secondaryLocationConfig = empty(secondaryLocation) ? [] : [
+  {
+    locationName: secondaryLocation
+    failoverPriority: 1
+    isZoneRedundant: false
+  }
+]
+
 resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   name: accountName
   location: location
@@ -55,18 +63,13 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
     consistencyPolicy: {
       defaultConsistencyLevel: consistencyLevel
     }
-    locations: [
+    locations: concat([
       {
         locationName: location
         failoverPriority: 0
         isZoneRedundant: false
       }
-      if (!empty(secondaryLocation)) {
-        locationName: secondaryLocation
-        failoverPriority: 1
-        isZoneRedundant: false
-      }
-    ]
+    ], secondaryLocationConfig)
   }
 }
 

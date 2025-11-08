@@ -17,17 +17,17 @@ param connectionStrings object = {}
 param tags object = {}
 
 var appSettingsArray = [
-  for key in union([], keys(appSettings)): {
-    name: key
-    value: string(appSettings[key])
+  for setting in items(appSettings): {
+    name: setting.key
+    value: string(setting.value)
   }
 ]
 
 var connectionStringsArray = [
-  for key in union([], keys(connectionStrings)): {
-    name: key
-    connectionString: string(connectionStrings[key].value)
-    type: string(connectionStrings[key].type)
+  for setting in items(connectionStrings): {
+    name: setting.key
+    connectionString: string(setting.value.value)
+    type: string(setting.value.type)
   }
 ]
 

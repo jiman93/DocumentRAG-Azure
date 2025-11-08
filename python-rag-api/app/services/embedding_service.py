@@ -4,7 +4,7 @@ Embedding service - handles text embeddings using OpenAI/Azure OpenAI
 import os
 import warnings
 from typing import List, Optional
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, AzureOpenAIEmbeddings
 
 from app.core.config import settings
 
@@ -30,14 +30,13 @@ class EmbeddingService:
         embedding_config = settings.get_embedding_config()
         
         # Initialize embeddings
-        if "azure_endpoint" in embedding_config:
+        if embedding_config.get("azure_endpoint"):
             # Azure OpenAI
-            self.embeddings = OpenAIEmbeddings(
+            self.embeddings = AzureOpenAIEmbeddings(
+                api_key=embedding_config["azure_api_key"],
                 azure_endpoint=embedding_config["azure_endpoint"],
                 azure_deployment=embedding_config["azure_deployment"],
-                openai_api_version=embedding_config["azure_api_version"],
-                openai_api_key=embedding_config["azure_api_key"],
-                model=self.embedding_model,
+                api_version=embedding_config["azure_api_version"],
             )
         else:
             # Standard OpenAI

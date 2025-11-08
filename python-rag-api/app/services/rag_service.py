@@ -10,6 +10,7 @@ from typing import List, Optional, Dict, Any
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from openai import BadRequestError
 
 from app.core.config import settings
 from app.services.document_processor import DocumentProcessor
@@ -344,23 +345,31 @@ Answer:""",
         # Generate response
         chain = prompt_template | self.llm
 
-        if stream:
-            # Streaming response
-            response = chain.stream(prompt_inputs)
-            # For streaming, we'd need to handle this differently
-            # For now, collect all chunks
-            answer_parts = []
-            for chunk in response:
-                if hasattr(chunk, "content"):
-                    answer_parts.append(chunk.content)
-            return "".join(answer_parts), prompt_inputs
-        else:
-            # Non-streaming response
-            response = chain.invoke(prompt_inputs)
-            answer_text = (
-                response.content if hasattr(response, "content") else str(response)
-            )
-            return answer_text, prompt_inputs
+        try:
+            if stream:
+                # Streaming response
+                response = chain.stream(prompt_inputs)
+                # For streaming, we'd need to handle this differently
+                # For now, collect all chunks
+                answer_parts = []
+                for chunk in response:
+                    if hasattr(chunk, "content"):
+                        answer_parts.append(chunk.content)
+                return "".join(answer_parts), prompt_inputs
+            else:
+                # Non-streaming response
+                response = chain.invoke(prompt_inputs)
+                answer_text = (
+                    response.content if hasattr(response, "content") else str(response)
+                )
+                return answer_text, prompt_inputs
+        except BadRequestError as exc:
+            error_text = str(exc)
+            if "content management policy" in error_text or "content_filter" in error_text:
+                raise ValueError(
+                    "Prompt or retrieved context was blocked by Azure OpenAI content filters."
+                ) from exc
+            raise
 
     def _generate_citations(self, documents: List) -> List[Citation]:
         """Generate citations from retrieved documents"""

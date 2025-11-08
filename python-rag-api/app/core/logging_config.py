@@ -17,6 +17,16 @@ logging.basicConfig(
     ],
 )
 
+# Reduce noise from Azure SDK loggers
+for noisy_logger in [
+    "azure",
+    "azure.core.pipeline.policies.http_logging_policy",
+    "azure.cosmos",
+    "azure.identity",
+]:
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+    logging.getLogger(noisy_logger).propagate = False
+
 logger = logging.getLogger("document_rag_api")
 
 

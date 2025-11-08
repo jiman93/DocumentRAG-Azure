@@ -2,12 +2,31 @@
 Vector store service - handles vector storage and retrieval
 Supports ChromaDB (local) and Azure AI Search
 """
+import json
 import os
 import sys
+import uuid
 import warnings
 from typing import List, Optional, Dict, Any
 from contextlib import redirect_stderr
 from io import StringIO
+
+from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import ResourceNotFoundError
+from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes.models import (
+    HnswParameters,
+    SearchField,
+    SearchFieldDataType,
+    SearchIndex,
+    SearchableField,
+    SimpleField,
+    VectorSearch,
+    VectorSearchProfile,
+    VectorSearchAlgorithmConfiguration,
+)
+from azure.search.documents.models import Vector
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 
@@ -55,13 +74,13 @@ class VectorStore:
         self.embedding_service = embedding_service
         self.vector_store_type = vector_store_type or settings.vector_store_type
         self.vectorstore: Optional[Chroma] = None
+        self.search_client: Optional[SearchClient] = None
+        self._azure_dimensions: Optional[int] = None
         
         if self.vector_store_type == "chroma":
             self._init_chroma()
         elif self.vector_store_type == "azure_search":
-            # Azure AI Search initialization would go here
-            # For now, fallback to Chroma
-            self._init_chroma()
+            self._init_azure_search()
         else:
             raise ValueError(f"Unsupported vector store type: {self.vector_store_type}")
     
@@ -85,6 +104,102 @@ class VectorStore:
                 RuntimeWarning,
             )
     
+    def _init_azure_search(self):
+        """Initialise Azure AI Search index and client"""
+        if not settings.azure_search_endpoint or not settings.azure_search_api_key:
+            raise ValueError("Azure Search endpoint and api key must be configured.")
+        
+        credential = AzureKeyCredential(settings.azure_search_api_key)
+        index_name = settings.azure_search_index_name
+        self.search_client = SearchClient(
+            endpoint=settings.azure_search_endpoint,
+            index_name=index_name,
+            credential=credential,
+        )
+        index_client = SearchIndexClient(
+            endpoint=settings.azure_search_endpoint,
+            credential=credential,
+        )
+        
+        try:
+            index_client.get_index(index_name)
+        except ResourceNotFoundError:
+            # Determine embedding dimension
+            sample_embedding = self.embedding_service.embed_text("dimension probe")
+            self._azure_dimensions = len(sample_embedding)
+            
+            vector_search = VectorSearch(
+                algorithms=[
+                    VectorSearchAlgorithmConfiguration(
+                        name="default",
+                        kind="hnsw",
+                        parameters=HnswParameters(metric="cosine"),
+                    )
+                ],
+                profiles=[
+                    VectorSearchProfile(
+                        name="default",
+                        algorithm_configuration_name="default",
+                    )
+                ],
+            )
+            
+            index = SearchIndex(
+                name=index_name,
+                fields=[
+                    SimpleField(name="id", type=SearchFieldDataType.String, key=True),
+                    SimpleField(
+                        name="document_id",
+                        type=SearchFieldDataType.String,
+                        filterable=True,
+                        facetable=False,
+                    ),
+                    SearchableField(
+                        name="content",
+                        type=SearchFieldDataType.String,
+                    ),
+                    SimpleField(
+                        name="chunk_index",
+                        type=SearchFieldDataType.Int32,
+                        filterable=True,
+                        sortable=True,
+                    ),
+                    SearchField(
+                        name="contentVector",
+                        type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                        vector_search_profile_name="default",
+                        vector_search_dimensions=self._azure_dimensions,
+                    ),
+                    SearchableField(
+                        name="source",
+                        type=SearchFieldDataType.String,
+                        filterable=True,
+                        retrievable=True,
+                    ),
+                    SearchableField(
+                        name="metadata_json",
+                        type=SearchFieldDataType.String,
+                        filterable=False,
+                        retrievable=True,
+                    ),
+                ],
+                vector_search=vector_search,
+            )
+            index_client.create_index(index)
+        else:
+            # Retrieve dimension from existing index
+            index = index_client.get_index(index_name)
+            vector_field = next(
+                (
+                    field
+                    for field in index.fields
+                    if isinstance(field, SearchField) and field.name == "contentVector"
+                ),
+                None,
+            )
+            if vector_field:
+                self._azure_dimensions = vector_field.vector_search_dimensions
+    
     def add_documents(
         self,
         documents: List[Document],
@@ -102,6 +217,8 @@ class VectorStore:
         """
         if self.vector_store_type == "chroma":
             return self._add_to_chroma(documents, document_ids)
+        elif self.vector_store_type == "azure_search":
+            return self._add_to_azure_search(documents, document_ids)
         else:
             raise NotImplementedError(f"Add documents not implemented for {self.vector_store_type}")
     
@@ -134,6 +251,44 @@ class VectorStore:
         # Return a placeholder list
         return [f"doc_{i}" for i in range(len(documents))]
     
+    def _add_to_azure_search(
+        self,
+        documents: List[Document],
+        document_ids: Optional[List[str]] = None,
+    ) -> List[str]:
+        if self.search_client is None:
+            raise ValueError("Azure Search client not initialised.")
+        
+        ids: List[str] = []
+        embeddings = self.embedding_service.embed_documents(
+            [doc.page_content for doc in documents]
+        )
+        
+        search_docs = []
+        for idx, doc in enumerate(documents):
+            doc_id = None
+            if document_ids and idx < len(document_ids):
+                doc_id = document_ids[idx]
+            else:
+                doc_id = doc.metadata.get("chunk_id") or str(uuid.uuid4())
+            ids.append(doc_id)
+            
+            metadata_json = json.dumps(doc.metadata, default=str)
+            search_docs.append(
+                {
+                    "id": doc_id,
+                    "document_id": doc.metadata.get("document_id"),
+                    "content": doc.page_content,
+                    "chunk_index": doc.metadata.get("chunk_index", 0),
+                    "source": doc.metadata.get("source_file") or doc.metadata.get("document_name"),
+                    "metadata_json": metadata_json,
+                    "contentVector": embeddings[idx],
+                }
+            )
+        
+        self.search_client.upload_documents(search_docs)
+        return ids
+    
     def similarity_search(
         self,
         query: str,
@@ -161,6 +316,8 @@ class VectorStore:
                     k=k,
                     filter=filter,
                 )
+        elif self.vector_store_type == "azure_search":
+            return self._search_azure(query, k, filter)
         else:
             raise NotImplementedError(f"Similarity search not implemented for {self.vector_store_type}")
     
@@ -191,6 +348,9 @@ class VectorStore:
                     k=k,
                     filter=filter,
                 )
+        elif self.vector_store_type == "azure_search":
+            docs = self._search_azure(query, k, filter)
+            return [(doc, doc.metadata.get("score", 0.0)) for doc in docs]
         else:
             raise NotImplementedError(f"Similarity search with score not implemented for {self.vector_store_type}")
     
@@ -209,15 +369,17 @@ class VectorStore:
         Returns:
             Retriever instance
         """
-        if self.vectorstore is None:
-            raise ValueError("Vector store not initialized. Add documents first.")
-        
         if self.vector_store_type == "chroma":
+            if self.vectorstore is None:
+                raise ValueError("Vector store not initialized. Add documents first.")
             with TelemetrySuppressor():
                 return self.vectorstore.as_retriever(
                     search_type=search_type,
                     search_kwargs=search_kwargs or {},
                 )
+        elif self.vector_store_type == "azure_search":
+            kwargs = search_kwargs or {}
+            return _AzureSearchRetriever(self, kwargs)
         else:
             raise NotImplementedError(f"Retriever not implemented for {self.vector_store_type}")
     
@@ -231,15 +393,88 @@ class VectorStore:
         Returns:
             True if successful
         """
-        if self.vectorstore is None:
-            return False
-        
         if self.vector_store_type == "chroma":
+            if self.vectorstore is None:
+                return False
             with TelemetrySuppressor():
                 self.vectorstore.delete(ids=document_ids)
                 return True
+        elif self.vector_store_type == "azure_search":
+            if self.search_client is None:
+                return False
+            docs = [{"id": doc_id} for doc_id in document_ids]
+            self.search_client.delete_documents(docs)
+            return True
         else:
             raise NotImplementedError(f"Delete documents not implemented for {self.vector_store_type}")
+    
+    def _search_azure(
+        self,
+        query: str,
+        k: int,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Document]:
+        if self.search_client is None:
+            raise ValueError("Azure Search client not initialised.")
+        if self._azure_dimensions is None:
+            self._azure_dimensions = len(self.embedding_service.embed_text("dimension probe"))
+        
+        query_embedding = self.embedding_service.embed_text(query)
+        vector = Vector(value=query_embedding, fields="contentVector", k=k)
+        
+        azure_filter = None
+        if filter:
+            parts = []
+            for key, value in filter.items():
+                if isinstance(value, str):
+                    parts.append(f"{key} eq '{value}'")
+                else:
+                    parts.append(f"{key} eq {value}")
+            if parts:
+                azure_filter = " and ".join(parts)
+        
+        results = self.search_client.search(
+            search_text="",
+            vector=vector,
+            filter=azure_filter,
+            select=["id", "document_id", "content", "chunk_index", "source", "metadata_json"],
+        )
+        
+        documents: List[Document] = []
+        for result in results:
+            metadata = {
+                "document_id": result.get("document_id"),
+                "chunk_index": result.get("chunk_index"),
+                "chunk_id": result.get("id"),
+                "source_file": result.get("source"),
+                "score": result["@search.score"],
+            }
+            metadata_json = result.get("metadata_json")
+            if metadata_json:
+                try:
+                    metadata.update(json.loads(metadata_json))
+                except json.JSONDecodeError:
+                    pass
+            documents.append(
+                Document(
+                    page_content=result.get("content", ""),
+                    metadata=metadata,
+                )
+            )
+        return documents
+
+
+class _AzureSearchRetriever:
+    """Simple retriever wrapper to mimic LangChain retriever interface"""
+
+    def __init__(self, store: VectorStore, search_kwargs: Dict[str, Any]):
+        self.store = store
+        self.search_kwargs = search_kwargs
+
+    def invoke(self, query: str) -> List[Document]:
+        k = self.search_kwargs.get("k", 5)
+        filter = self.search_kwargs.get("filter")
+        return self.store.similarity_search(query=query, k=k, filter=filter)
     
     def is_initialized(self) -> bool:
         """Check if vector store is initialized"""

@@ -21,15 +21,16 @@ This folder contains the Azure Resource Manager (ARM) templates written in **Bic
 
 `main.bicep` exposes high-level knobs:
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `resourcePrefix` | Base prefix for resource names | `docrag` |
-| `environment` | Environment code (`dev`, `stg`, `prod`, etc.) | `dev` |
-| `location` | Azure region | `eastus` |
-| `tenantId` | AAD tenant ID (required for Key Vault) | – |
-| `deployRedis` | Whether to deploy Redis cache | `false` |
-| `deployStaticWebApp` | Whether to deploy a Static Web App | `false` |
-| `tags` | Additional resource tags | `{}` |
+| Parameter              | Description                                         | Default    |
+| ---------------------- | --------------------------------------------------- | ---------- |
+| `resourcePrefix`     | Base prefix for resource names                      | `docrag` |
+| `environment`        | Environment code (`dev`, `stg`, `prod`, etc.) | `dev`    |
+| `location`           | Azure region                                        | `eastus` |
+| `tenantId`           | AAD tenant ID (required for Key Vault)              | –         |
+| `openAiLocation`     | Region for the Azure OpenAI resource                | same as `location` |
+| `deployRedis`        | Whether to deploy Redis cache                       | `false`  |
+| `deployStaticWebApp` | Whether to deploy a Static Web App                  | `false`  |
+| `tags`               | Additional resource tags                            | `{}`     |
 
 ## Deploying
 
@@ -39,15 +40,15 @@ cd infrastructure/bicep
 
 # Validate template
 az deployment sub what-if \
-  --location eastus \
+  --location southeastasia \
   --template-file main.bicep \
-  --parameters tenantId=<tenant-guid> environment=dev
+  --parameters tenantId=dd70c224-0796-451b-b318-d298ed42c030 environment=dev location=southeastasia openAiLocation=eastus
 
 # Deploy (subscription-level)
 az deployment sub create \
-  --location eastus \
+  --location southeastasia \
   --template-file main.bicep \
-  --parameters tenantId=<tenant-guid> environment=dev
+  --parameters tenantId=dd70c224-0796-451b-b318-d298ed42c030 environment=dev location=southeastasia openAiLocation=eastus
 ```
 
 > Adjust scope/command (e.g. `group deployment`) if you prefer deploying into an existing resource group.
@@ -55,4 +56,3 @@ az deployment sub create \
 ## Outputs
 
 Deployment outputs include storage account name, OpenAI resource ID, Cosmos connection string, App Service URL, Key Vault URI, and optional Redis host—values you can feed directly into application configuration or CI/CD pipelines.
-

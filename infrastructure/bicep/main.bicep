@@ -7,6 +7,9 @@ param environment string = 'dev'
 @description('Azure region for deployment')
 param location string = 'eastus'
 
+@description('Azure region for the Azure OpenAI resource (defaults to deployment location)')
+param openAiLocation string = location
+
 @description('Tenant ID for Key Vault access configuration')
 param tenantId string
 
@@ -52,7 +55,7 @@ module openAi 'modules/openai.bicep' = {
   name: 'openAi'
   params: {
     openAiAccountName: openAiName
-    location: location
+    location: openAiLocation
     tags: globalTags
   }
 }

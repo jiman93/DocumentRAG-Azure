@@ -41,7 +41,7 @@ class RAGQueryRequest(BaseModel):
         default=None, description="Previous conversation messages"
     )
     top_k: int = Field(
-        default=5, ge=1, le=20, description="Number of chunks to retrieve"
+        default=3, ge=1, le=20, description="Number of chunks to retrieve"
     )
     temperature: float = Field(
         default=0.3, ge=0.0, le=2.0, description="LLM temperature"

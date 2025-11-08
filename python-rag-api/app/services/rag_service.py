@@ -4,6 +4,7 @@ RAG service - orchestrates document processing, retrieval, and generation
 
 import logging
 import os
+import re
 import time
 from datetime import datetime
 from typing import List, Optional, Dict, Any
@@ -316,13 +317,8 @@ class RAGService:
         stream: bool = False,
     ) -> tuple[str, Dict[str, str]]:
         """Generate answer using LLM and return prompt inputs for tracking"""
-        # Build context
-        context = "\n\n".join(
-            [
-                f"[Document {i+1}]: {doc.page_content}"
-                for i, doc in enumerate(context_docs)
-            ]
-        )
+        sanitized_docs = self._sanitize_context_docs(context_docs)
+        context = self._build_context_from_docs(sanitized_docs)
 
         prompt_inputs = {
             "context": context,
@@ -366,10 +362,109 @@ Answer:""",
         except BadRequestError as exc:
             error_text = str(exc)
             if "content management policy" in error_text or "content_filter" in error_text:
+                logger.warning(
+                    "Azure content filter triggered. question=%r context_preview=%r",
+                    question,
+                    prompt_inputs["context"][:1000],  # trim so logs stay manageable
+                )
                 raise ValueError(
                     "Prompt or retrieved context was blocked by Azure OpenAI content filters."
                 ) from exc
             raise
+
+    def _sanitize_context_docs(self, context_docs: List) -> List:
+        """
+        Remove bullet points and directive phrases that might trigger Azure's jailbreak filters.
+        """
+        cleaned_docs = []
+        directive_terms = {
+            "implement",
+            "build",
+            "baseline",
+            "ignore",
+            "bypass",
+            "system prompt",
+            "override",
+            "instructions",
+            "collect",
+            "preprocess",
+            "develop",
+            "conduct",
+            "evaluate",
+            "deliverables",
+            "key tasks",
+            "framework",
+            "web app",
+            "retriever",
+            "generator",
+            "pipeline",
+            "feedback",
+            "components",
+            "store embeddings",
+            "evaluation engine",
+        }
+
+        for doc in context_docs:
+            text = doc.page_content.replace("•", " ").replace("–", " ")
+            text = re.sub(r"\([0-9]+\)", "", text)
+            sentences = [
+                s.strip()
+                for s in re.split(r"(?<=[.!?])\s+", text)
+                if s.strip()
+            ]
+
+            filtered_sentences = []
+            for sentence in sentences:
+                lower_sentence = sentence.lower()
+                if any(term in lower_sentence for term in directive_terms):
+                    continue
+                if "contact" in lower_sentence or "phone" in lower_sentence:
+                    continue
+                if "email" in lower_sentence or "@" in sentence:
+                    continue
+                filtered_sentences.append(sentence)
+                if len(filtered_sentences) >= 4:
+                    break
+
+            if not filtered_sentences:
+                filtered_sentences = sentences[:2]
+
+            doc.metadata["sanitized_sentences"] = filtered_sentences
+            doc.page_content = " ".join(filtered_sentences)
+            cleaned_docs.append(doc)
+
+        return cleaned_docs
+
+    def _build_context_from_docs(self, docs: List) -> str:
+        sections = []
+        for idx, doc in enumerate(docs):
+            sentences = doc.metadata.get("sanitized_sentences") or [
+                s.strip()
+                for s in re.split(r"(?<=[.!?])\s+", doc.page_content)
+                if s.strip()
+            ]
+            summary = self._summarize_sentences(sentences)
+            sections.append(f"[Document {idx + 1} Summary]: {summary}")
+        return "\n\n".join(sections)
+
+    def _summarize_sentences(
+        self, sentences: List[str], max_sentences: int = 2, max_chars: int = 250
+    ) -> str:
+        summary_parts: List[str] = []
+        total_chars = 0
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            if total_chars + len(sentence) > max_chars:
+                break
+            summary_parts.append(sentence)
+            total_chars += len(sentence)
+            if len(summary_parts) >= max_sentences:
+                break
+        if not summary_parts and sentences:
+            summary_parts.append(sentences[0][:max_chars])
+        return " ".join(summary_parts)
 
     def _generate_citations(self, documents: List) -> List[Citation]:
         """Generate citations from retrieved documents"""

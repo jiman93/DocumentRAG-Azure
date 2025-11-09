@@ -22,6 +22,21 @@ param deployStaticWebApp bool = false
 @description('Toggle to deploy Azure AI Search service')
 param deploySearch bool = false
 
+@description('Toggle to deploy a Cost Management budget')
+param deployBudget bool = false
+
+@description('Monthly budget amount in USD')
+param budgetAmount int = 20
+
+@description('Budget notification email recipients')
+param budgetContactEmails array = []
+
+@description('Budget start date (ISO 8601). Defaults to now.')
+param budgetStartDate string = utcNow()
+
+@description('Budget end date (ISO 8601). Defaults to one year after start')
+param budgetEndDate string = dateTimeAdd(budgetStartDate, 'P1Y')
+
 @description('Optional tags to apply to all resources')
 param tags object = {}
 
@@ -73,6 +88,22 @@ module search 'modules/search.bicep' = if (deploySearch) {
 }
 
 var searchEndpoint = deploySearch ? search.outputs.searchServiceEndpoint : ''
+var appServiceDependencies = deploySearch ? [
+  plan
+  appInsights
+  openAi
+  cosmos
+  storage
+  keyVault
+  search
+] : [
+  plan
+  appInsights
+  openAi
+  cosmos
+  storage
+  keyVault
+]
 
 module cosmos 'modules/cosmos.bicep' = {
   name: 'cosmosDb'
@@ -132,15 +163,7 @@ module appService 'modules/app-service.bicep' = {
       'KEY_VAULT_URI': keyVault.outputs.keyVaultUri
     }
   }
-  dependsOn: [
-    plan
-    appInsights
-    openAi
-    cosmos
-    storage
-    keyVault
-    if (deploySearch) search
-  ]
+  dependsOn: appServiceDependencies
 }
 
 module redis 'modules/redis.bicep' = if (deployRedis) {
@@ -158,6 +181,18 @@ module staticWebApp 'modules/static-web-app.bicep' = if (deployStaticWebApp) {
     staticWebAppName: staticWebAppName
     location: location
     tags: globalTags
+  }
+}
+
+module budget 'modules/budget.bicep' = if (deployBudget && length(budgetContactEmails) > 0) {
+  name: 'costBudget'
+  scope: resourceGroup()
+  params: {
+    budgetName: '${normalizedPrefix}-${environment}-budget'
+    amount: budgetAmount
+    contactEmails: budgetContactEmails
+    startDate: budgetStartDate
+    endDate: budgetEndDate
   }
 }
 

@@ -19,6 +19,9 @@ param deployRedis bool = false
 @description('Toggle to deploy Static Web App')
 param deployStaticWebApp bool = false
 
+@description('Toggle to deploy Azure AI Search service')
+param deploySearch bool = false
+
 @description('Optional tags to apply to all resources')
 param tags object = {}
 
@@ -60,7 +63,7 @@ module openAi 'modules/openai.bicep' = {
   }
 }
 
-module search 'modules/search.bicep' = {
+module search 'modules/search.bicep' = if (deploySearch) {
   name: 'searchService'
   params: {
     searchServiceName: searchServiceName
@@ -68,6 +71,8 @@ module search 'modules/search.bicep' = {
     tags: globalTags
   }
 }
+
+var searchEndpoint = deploySearch ? search.outputs.searchServiceEndpoint : ''
 
 module cosmos 'modules/cosmos.bicep' = {
   name: 'cosmosDb'
@@ -121,7 +126,7 @@ module appService 'modules/app-service.bicep' = {
       'APPLICATIONINSIGHTS_CONNECTION_STRING': appInsights.outputs.connectionString
       'AZURE_OPENAI_ENDPOINT': openAi.outputs.openAiEndpoint
       'AZURE_OPENAI_RESOURCE_ID': openAi.outputs.openAiAccountId
-      'AZURE_SEARCH_ENDPOINT': search.outputs.searchServiceEndpoint
+      'AZURE_SEARCH_ENDPOINT': searchEndpoint
       'COSMOS_ACCOUNT_ID': cosmos.outputs.cosmosAccountId
       'STORAGE_ACCOUNT_ID': storage.outputs.storageAccountId
       'KEY_VAULT_URI': keyVault.outputs.keyVaultUri
@@ -131,10 +136,10 @@ module appService 'modules/app-service.bicep' = {
     plan
     appInsights
     openAi
-    search
     cosmos
     storage
     keyVault
+    if (deploySearch) search
   ]
 }
 
@@ -158,7 +163,7 @@ module staticWebApp 'modules/static-web-app.bicep' = if (deployStaticWebApp) {
 
 output storageAccountName string = storageAccountName
 output openAiResourceId string = openAi.outputs.openAiAccountId
-output searchServiceEndpoint string = search.outputs.searchServiceEndpoint
+output searchServiceEndpoint string = searchEndpoint
 output cosmosConnectionString string = cosmos.outputs.cosmosPrimaryConnectionString
 output appServiceUrl string = 'https://${appServiceName}.azurewebsites.net'
 output keyVaultUri string = keyVault.outputs.keyVaultUri

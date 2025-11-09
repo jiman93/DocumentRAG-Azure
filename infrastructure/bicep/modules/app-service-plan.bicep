@@ -16,10 +16,10 @@ param location string
   'Isolated'
   'IsolatedV2'
 ])
-param skuTier string = 'PremiumV3'
+param skuTier string = 'Basic'
 
 @description('SKU size for the plan')
-param skuSize string = 'P1v3'
+param skuSize string = 'B1'
 
 @description('Worker count')
 @minValue(1)

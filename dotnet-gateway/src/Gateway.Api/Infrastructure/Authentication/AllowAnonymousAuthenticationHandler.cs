@@ -1,4 +1,6 @@
+using System;
 using System.Security.Claims;
+using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 
@@ -9,10 +11,11 @@ public class AllowAnonymousAuthenticationHandler : AuthenticationHandler<Authent
     public AllowAnonymousAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
-        System.Text.Encodings.Web.UrlEncoder encoder,
-        ISystemClock clock)
-        : base(options, logger, encoder, clock)
+        UrlEncoder encoder,
+        TimeProvider timeProvider)
+        : base(options, logger, encoder)
     {
+        Options.TimeProvider = timeProvider ?? TimeProvider.System;
     }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()

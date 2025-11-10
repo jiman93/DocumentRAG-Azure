@@ -23,7 +23,7 @@ This document tracks the main milestones we have completed while bringing the .N
   - Named HttpClient (`PythonRagApi`) with exponential back‑off retry and circuit breaker (via Polly) targeting the FastAPI backend.
 - **Health checks**
   - Added readiness probes for Redis (when enabled) and the Python API.
-  - Exposed `/health`, `/health/ready`, `/health/live`, plus the Health Checks UI dashboard.
+  - Exposed `/health`, `/health/ready`, `/health/live`, plus the Health Checks UI dashboard (UI now targets HTTP for the gateway probe to avoid local TLS noise).
 - **Swagger / OpenAPI**
   - Always-on Swagger UI mapped to `/swagger/index.html`.
   - Documented three primary controller endpoints: list documents, upload document, chat query.
@@ -45,7 +45,7 @@ This document tracks the main milestones we have completed while bringing the .N
 
 - **Environment**
   - Default port: 7001 (HTTP only)
-  - Health checks UI polls `https://localhost:7001/health`; the SSL errors in the console are expected until we host HTTPS.
+  - Health checks UI polls `http://localhost:7001/health`, eliminating the earlier HTTPS handshake warnings.
 
 - **Warnings**
   - `Azure.Identity` 1.10.0 flagged for security advisories → plan to upgrade.
@@ -54,7 +54,7 @@ This document tracks the main milestones we have completed while bringing the .N
 ## Remaining Work / Ideas
 
 - Harden `AllowAnonymousAuthenticationHandler` (replace obsolete API).
-- Wire up HTTPS locally (or change Health Checks UI configuration to poll HTTP).
+- ~~Wire up HTTPS locally (or change Health Checks UI configuration to poll HTTP).~~ (Switched UI probe to HTTP.)
 - Add more granular logging/metrics (Serilog sinks, Application Insights telemetry).
 - Document build/test workflow (dotnet test, linting) and CI integration.
 

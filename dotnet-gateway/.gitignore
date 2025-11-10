@@ -1,0 +1,16 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.ide
+Generated/
+/TestResults/
+/.vscode/
+*.ncrunchsolution
+*.ncrunchproject
+_ReSharper.Caches/
+*.DS_Store
+

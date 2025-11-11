@@ -2,6 +2,7 @@ import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import { FileText, MessageSquare, Upload, Menu, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+import ConversationList from "@/components/ConversationList";
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -50,26 +51,32 @@ export default function Layout() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-1">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`
-                    flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors
-                    ${active ? "bg-primary-50 text-primary-700" : "text-gray-700 hover:bg-gray-100"}
-                  `}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <Icon className="mr-3 h-5 w-5" />
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <nav className="space-y-1">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`
+                      flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors
+                      ${active ? "bg-primary-50 text-primary-700" : "text-gray-700 hover:bg-gray-100"}
+                    `}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <Icon className="mr-3 h-5 w-5" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {location.pathname.startsWith("/chat") && (
+              <ConversationList onSelect={() => setSidebarOpen(false)} />
+            )}
+          </div>
 
           {/* Logout */}
           <div className="px-4 pb-4 border-t border-gray-100">

@@ -2,6 +2,7 @@ import { FileText, Trash2, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { useDocuments, useDeleteDocument } from '@/hooks/useApi';
 import { useDocumentStore } from '@/store';
 import { useNavigate } from 'react-router-dom';
+import type { Document } from '@/types';
 
 export default function DocumentsPage() {
   const { data: documents, isLoading } = useDocuments();
@@ -9,7 +10,7 @@ export default function DocumentsPage() {
   const { selectedDocument, selectDocument } = useDocumentStore();
   const navigate = useNavigate();
 
-  const handleSelect = (doc: typeof documents[0]) => {
+  const handleSelect = (doc: Document) => {
     selectDocument(doc);
     navigate('/chat');
   };
@@ -23,9 +24,10 @@ export default function DocumentsPage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'ready':
+      case 'indexed':
         return <CheckCircle className="h-5 w-5 text-green-500" />;
       case 'processing':
+      case 'uploaded':
         return <Clock className="h-5 w-5 text-yellow-500 animate-spin" />;
       case 'failed':
         return <AlertCircle className="h-5 w-5 text-red-500" />;
@@ -58,24 +60,20 @@ export default function DocumentsPage() {
     );
   }
 
+  const documentList = documents ?? [];
+
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Documents</h1>
-        <p className="text-gray-600">
-          Manage your uploaded documents
-        </p>
+        <p className="text-gray-600">Manage your uploaded documents</p>
       </div>
 
-      {!documents || documents.length === 0 ? (
+      {documentList.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <FileText className="mx-auto h-16 w-16 text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            No documents yet
-          </h3>
-          <p className="text-gray-600 mb-6">
-            Upload your first document to get started
-          </p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No documents yet</h3>
+          <p className="text-gray-600 mb-6">Upload your first document to get started</p>
           <button
             onClick={() => navigate('/')}
             className="bg-primary-500 text-white px-6 py-2 rounded-lg hover:bg-primary-600 transition-colors"
@@ -85,18 +83,18 @@ export default function DocumentsPage() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {documents.map((doc) => (
+          {documentList.map((doc: Document) => (
             <div
-              key={doc.id}
-              onClick={() => doc.status === 'ready' && handleSelect(doc)}
+              key={doc.document_id}
+              onClick={() => doc.status === 'indexed' && handleSelect(doc)}
               className={`
                 bg-white rounded-lg border-2 p-6 transition-all cursor-pointer
                 ${
-                  selectedDocument?.id === doc.id
+                  selectedDocument?.document_id === doc.document_id
                     ? 'border-primary-500 shadow-md'
                     : 'border-gray-200 hover:border-primary-300 hover:shadow-sm'
                 }
-                ${doc.status !== 'ready' && 'opacity-75 cursor-not-allowed'}
+                ${doc.status !== 'indexed' && 'opacity-75 cursor-not-allowed'}
               `}
             >
               <div className="flex items-start justify-between">
@@ -104,7 +102,7 @@ export default function DocumentsPage() {
                   <div className="bg-primary-100 p-3 rounded-lg">
                     <FileText className="h-6 w-6 text-primary-600" />
                   </div>
-                  
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-3 mb-2">
                       <h3 className="text-lg font-semibold text-gray-900 truncate">
@@ -112,7 +110,7 @@ export default function DocumentsPage() {
                       </h3>
                       {getStatusIcon(doc.status)}
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center">
                         <span className="font-medium mr-1">Type:</span>
@@ -130,14 +128,14 @@ export default function DocumentsPage() {
                       )}
                       <span className="flex items-center">
                         <span className="font-medium mr-1">Uploaded:</span>
-                        {formatDate(doc.created_at)}
+                        {formatDate(doc.upload_time)}
                       </span>
                     </div>
 
                     <div className="mt-2">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          doc.status === 'ready'
+                          doc.status === 'indexed'
                             ? 'bg-green-100 text-green-800'
                             : doc.status === 'processing'
                             ? 'bg-yellow-100 text-yellow-800'
@@ -151,7 +149,7 @@ export default function DocumentsPage() {
                 </div>
 
                 <button
-                  onClick={(e) => handleDelete(e, doc.id)}
+                  onClick={(e) => handleDelete(e, doc.document_id)}
                   disabled={deleteMutation.isPending}
                   className="ml-4 text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
                   title="Delete document"

@@ -1,21 +1,18 @@
-import axios from 'axios';
-import type { Document, ChatRequest, ChatResponse } from '@/types';
+import axios from "axios";
+import type { Document, ChatRequest, ChatResponse } from "@/types";
 
-const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  timeout: 120000, // 2 minutes for long-running operations
+  timeout: 120_000, // 2 minutes for long-running operations
 });
 
 // Request interceptor (for auth tokens if needed)
 api.interceptors.request.use(
   (config) => {
     // Add auth token if available
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem("auth_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,21 +25,31 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    console.error("API Error:", error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
 
 // Document APIs
+const mapDocument = (doc: any): Document => ({
+  document_id: doc.document_id,
+  filename: doc.filename,
+  file_type: doc.file_type,
+  file_size: doc.file_size,
+  status: doc.status,
+  upload_time: doc.upload_time,
+  indexed_at: doc.indexed_at ?? null,
+  chunk_count: doc.chunk_count ?? undefined,
+  blob_url: doc.blob_url ?? undefined,
+  metadata: doc.metadata ?? undefined,
+});
+
 export const documentApi = {
   upload: async (file: File, onProgress?: (progress: number) => void) => {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
-    const response = await api.post<Document>('/documents/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    const response = await api.post("/documents/upload", formData, {
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total && onProgress) {
           const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
@@ -54,32 +61,31 @@ export const documentApi = {
     return response.data;
   },
 
-  list: async () => {
-    const response = await api.get<{ documents: Document[] }>('/documents');
-    return response.data.documents;
+  list: async (): Promise<Document[]> => {
+    const response = await api.get("/documents");
+    const documents = response.data?.documents ?? [];
+    return documents.map(mapDocument);
   },
 
   delete: async (id: string) => {
     await api.delete(`/documents/${id}`);
   },
 
-  get: async (id: string) => {
-    const response = await api.get<Document>(`/documents/${id}`);
-    return response.data;
+  get: async (id: string): Promise<Document> => {
+    const response = await api.get(`/documents/${id}`);
+    return mapDocument(response.data);
   },
 };
 
 // Chat APIs
 export const chatApi = {
   query: async (request: ChatRequest) => {
-    const response = await api.post<ChatResponse>('/chat', request);
+    const response = await api.post<ChatResponse>("/chat/query", request);
     return response.data;
   },
 
   getHistory: async (conversationId: string) => {
-    const response = await api.get<{ history: ChatResponse[] }>(
-      `/chat/history/${conversationId}`
-    );
+    const response = await api.get<{ history: ChatResponse[] }>(`/chat/history/${conversationId}`);
     return response.data.history;
   },
 };
@@ -87,7 +93,7 @@ export const chatApi = {
 // Health check
 export const healthApi = {
   check: async () => {
-    const response = await api.get('/health');
+    const response = await api.get("/health");
     return response.data;
   },
 };

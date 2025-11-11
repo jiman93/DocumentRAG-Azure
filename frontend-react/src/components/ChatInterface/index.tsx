@@ -26,7 +26,7 @@ export default function ChatInterface() {
 
     chatMutation.mutate({
       question,
-      document_id: selectedDocument?.id,
+      document_id: selectedDocument?.document_id,
     });
   };
 

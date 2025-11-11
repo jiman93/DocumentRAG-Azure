@@ -83,7 +83,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 - `POST /documents/upload` - Upload document
 - `GET /documents` - List documents
 - `DELETE /documents/{id}` - Delete document
-- `POST /chat` - Ask question
+- `POST /chat/query` - Ask question about a document
 - `GET /chat/history/{conversationId}` - Get chat history
 
 ## 🎨 Tech Stack

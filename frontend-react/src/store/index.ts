@@ -21,8 +21,9 @@ export const useDocumentStore = create<DocumentStore>()(
         set((state) => ({ documents: [...state.documents, document] })),
       removeDocument: (id) =>
         set((state) => ({
-          documents: state.documents.filter((doc) => doc.id !== id),
-          selectedDocument: state.selectedDocument?.id === id ? null : state.selectedDocument,
+          documents: state.documents.filter((doc) => doc.document_id !== id),
+          selectedDocument:
+            state.selectedDocument?.document_id === id ? null : state.selectedDocument,
         })),
       selectDocument: (document) => set({ selectedDocument: document }),
     }),

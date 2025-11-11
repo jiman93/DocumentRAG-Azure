@@ -1,14 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentApi, chatApi } from '@/services/api';
-import { useDocumentStore, useChatStore } from '@/store';
-import type { ChatRequest } from '@/types';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { documentApi, chatApi } from "@/services/api";
+import { useDocumentStore, useChatStore } from "@/store";
+import type { ChatRequest } from "@/types";
 
 // Document hooks
 export const useDocuments = () => {
   const { setDocuments } = useDocumentStore();
 
   return useQuery({
-    queryKey: ['documents'],
+    queryKey: ["documents"],
     queryFn: async () => {
       const documents = await documentApi.list();
       setDocuments(documents);
@@ -20,14 +20,12 @@ export const useDocuments = () => {
 
 export const useUploadDocument = () => {
   const queryClient = useQueryClient();
-  const { addDocument } = useDocumentStore();
 
   return useMutation({
     mutationFn: ({ file, onProgress }: { file: File; onProgress?: (progress: number) => void }) =>
       documentApi.upload(file, onProgress),
-    onSuccess: (data) => {
-      addDocument(data);
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
   });
 };
@@ -40,7 +38,7 @@ export const useDeleteDocument = () => {
     mutationFn: (id: string) => documentApi.delete(id),
     onSuccess: (_, id) => {
       removeDocument(id);
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
   });
 };
@@ -52,11 +50,11 @@ export const useChatQuery = () => {
   return useMutation({
     mutationFn: async (request: ChatRequest) => {
       setLoading(true);
-      
+
       // Add user message
       addMessage({
         id: Date.now().toString(),
-        role: 'user',
+        role: "user",
         content: request.question,
         timestamp: new Date().toISOString(),
       });
@@ -68,7 +66,7 @@ export const useChatQuery = () => {
       // Add assistant message
       addMessage({
         id: Date.now().toString(),
-        role: 'assistant',
+        role: "assistant",
         content: data.answer,
         sources: data.sources,
         timestamp: new Date().toISOString(),

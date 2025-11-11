@@ -1,13 +1,17 @@
 // Document types
+export type DocumentStatus = 'uploaded' | 'processing' | 'indexed' | 'failed';
+
 export interface Document {
-  id: string;
+  document_id: string;
   filename: string;
   file_type: string;
   file_size: number;
-  status: 'processing' | 'ready' | 'failed';
-  created_at: string;
-  updated_at: string;
+  status: DocumentStatus;
+  upload_time: string;
+  indexed_at?: string | null;
   chunk_count?: number;
+  blob_url?: string | null;
+  metadata?: Record<string, unknown>;
 }
 
 // Chat types

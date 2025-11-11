@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import time
+import uuid
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
@@ -254,7 +255,49 @@ class RAGService:
             },
         }
 
-        if request.conversation_id:
+        conversation_id = request.conversation_id
+        if not conversation_id:
+            conversation_id = str(uuid.uuid4())
+            conversation_created = self.storage_service.save_conversation(
+                conversation_id,
+                {
+                    "conversation_id": conversation_id,
+                    "title": request.question[:60] + "..." if len(request.question) > 60 else request.question,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat(),
+                    "message_count": 0,
+                    "messages": [],
+                    "metadata": {
+                        "document_id": request.document_id,
+                    },
+                },
+            )
+            if not conversation_created:
+                logger.warning(
+                    "Failed to create conversation record for conversation_id=%s",
+                    conversation_id,
+                )
+        else:
+            conversation = self.storage_service.get_conversation(conversation_id)
+            if not conversation:
+                self.storage_service.save_conversation(
+                    conversation_id,
+                    {
+                        "conversation_id": conversation_id,
+                        "title": request.question[:60] + "..."
+                        if len(request.question) > 60
+                        else request.question,
+                        "created_at": datetime.utcnow().isoformat(),
+                        "updated_at": datetime.utcnow().isoformat(),
+                        "message_count": 0,
+                        "messages": [],
+                        "metadata": {
+                            "document_id": request.document_id,
+                        },
+                    },
+                )
+
+        if conversation_id:
             message_timestamp = datetime.utcnow().isoformat()
             conversation_messages = [
                 {
@@ -269,12 +312,17 @@ class RAGService:
                     "metadata": response_metadata,
                 },
             ]
-            self.storage_service.append_conversation_messages(
-                request.conversation_id, conversation_messages
+            appended = self.storage_service.append_conversation_messages(
+                conversation_id, conversation_messages
             )
+            if not appended:
+                logger.warning(
+                    "Failed to append messages to conversation_id=%s", conversation_id
+                )
 
         return RAGQueryResponse(
             answer=answer,
+            conversation_id=conversation_id,
             citations=citations,
             related_questions=related_questions,
             confidence_score=confidence_score,

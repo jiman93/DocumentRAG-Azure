@@ -20,6 +20,9 @@ public sealed class RagQueryRequest
     [JsonPropertyName("question")]
     public string Question { get; set; } = string.Empty;
 
+    [JsonPropertyName("document_id")]
+    public string? DocumentId { get; set; }
+
     [JsonPropertyName("conversation_id")]
     public string? ConversationId { get; set; }
 

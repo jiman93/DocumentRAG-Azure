@@ -22,6 +22,7 @@ export interface ChatMessage {
   content: string;
   sources?: Source[];
   timestamp: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Source {
@@ -37,12 +38,28 @@ export interface ChatRequest {
   question: string;
   document_id?: string;
   conversation_id?: string;
+  conversation_history?: ConversationHistoryMessage[];
 }
 
 export interface ChatResponse {
   answer: string;
   sources: Source[];
   conversation_id: string;
+  metadata?: Record<string, unknown>;
+  confidence_score?: number;
+  related_questions?: string[];
+}
+
+export interface ConversationHistoryMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ConversationHistory {
+  conversation_id: string;
+  messages: ConversationHistoryMessage[];
 }
 
 // Upload types

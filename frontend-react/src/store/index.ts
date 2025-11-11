@@ -1,6 +1,6 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import type { Document, ChatMessage } from '@/types';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type { Document, ChatMessage } from "@/types";
 
 interface DocumentStore {
   documents: Document[];
@@ -17,23 +17,20 @@ export const useDocumentStore = create<DocumentStore>()(
       documents: [],
       selectedDocument: null,
       setDocuments: (documents) => set({ documents }),
-      addDocument: (document) =>
-        set((state) => ({ documents: [...state.documents, document] })),
+      addDocument: (document) => set((state) => ({ documents: [...state.documents, document] })),
       removeDocument: (id) =>
         set((state) => {
           const match = (doc: Document) =>
             doc.document_id === id || (doc.id ? doc.id === id : false);
           const filtered = state.documents.filter((doc) => !match(doc));
           const selected =
-            state.selectedDocument && match(state.selectedDocument)
-              ? null
-              : state.selectedDocument;
+            state.selectedDocument && match(state.selectedDocument) ? null : state.selectedDocument;
           return { documents: filtered, selectedDocument: selected };
         }),
       selectDocument: (document) => set({ selectedDocument: document }),
     }),
     {
-      name: 'document-storage',
+      name: "document-storage",
     }
   )
 );
@@ -41,11 +38,13 @@ export const useDocumentStore = create<DocumentStore>()(
 interface ChatStore {
   messages: ChatMessage[];
   conversationId: string | null;
+  documentId: string | null;
   isLoading: boolean;
   addMessage: (message: ChatMessage) => void;
   setMessages: (messages: ChatMessage[]) => void;
-  clearMessages: () => void;
+  clearConversation: () => void;
   setConversationId: (id: string) => void;
+  setDocumentId: (id: string | null) => void;
   setLoading: (loading: boolean) => void;
 }
 
@@ -54,16 +53,17 @@ export const useChatStore = create<ChatStore>()(
     (set) => ({
       messages: [],
       conversationId: null,
+      documentId: null,
       isLoading: false,
-      addMessage: (message) =>
-        set((state) => ({ messages: [...state.messages, message] })),
+      addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
       setMessages: (messages) => set({ messages }),
-      clearMessages: () => set({ messages: [], conversationId: null }),
+      clearConversation: () => set({ messages: [], conversationId: null, documentId: null }),
       setConversationId: (id) => set({ conversationId: id }),
+      setDocumentId: (id) => set({ documentId: id }),
       setLoading: (loading) => set({ isLoading: loading }),
     }),
     {
-      name: 'chat-storage',
+      name: "chat-storage",
     }
   )
 );

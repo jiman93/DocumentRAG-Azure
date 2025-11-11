@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { useUploadDocument } from '@/hooks/useApi';
 import type { UploadProgress } from '@/types';
 

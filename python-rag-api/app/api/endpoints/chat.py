@@ -14,6 +14,8 @@ from app.models.chat import (
     StreamingChunk,
     ConversationCreateRequest,
     ConversationResponse,
+    ConversationHistoryResponse,
+    ChatMessage,
 )
 from app.services.rag_service import RAGService
 from app.services.storage_service import StorageService
@@ -158,6 +160,7 @@ async def create_conversation(
         updated_at=datetime.fromisoformat(conversation_data["updated_at"]),
         message_count=0,
         metadata=request.metadata,
+        messages=[],
     )
 
 
@@ -171,12 +174,53 @@ async def get_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
     
+    messages = [
+        ChatMessage(
+            role=msg.get("role", "assistant"),
+            content=msg.get("content", ""),
+            timestamp=datetime.fromisoformat(msg.get("timestamp"))
+            if msg.get("timestamp")
+            else datetime.utcnow(),
+            metadata=msg.get("metadata"),
+        )
+        for msg in conversation.get("messages", [])
+    ]
+
     return ConversationResponse(
         conversation_id=conversation["conversation_id"],
         title=conversation.get("title"),
         created_at=datetime.fromisoformat(conversation["created_at"]),
         updated_at=datetime.fromisoformat(conversation["updated_at"]),
-        message_count=len(conversation.get("messages", [])),
+        message_count=len(messages),
         metadata=conversation.get("metadata", {}),
+        messages=messages,
+    )
+
+
+@router.get("/history/{conversation_id}", response_model=ConversationHistoryResponse)
+async def get_conversation_history(
+    conversation_id: str,
+    storage_service: StorageService = Depends(get_storage_service),
+):
+    """Get conversation history (messages only)"""
+    conversation = storage_service.get_conversation(conversation_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    messages = [
+        ChatMessage(
+            role=msg.get("role", "assistant"),
+            content=msg.get("content", ""),
+            timestamp=datetime.fromisoformat(msg.get("timestamp"))
+            if msg.get("timestamp")
+            else datetime.utcnow(),
+            metadata=msg.get("metadata"),
+        )
+        for msg in conversation.get("messages", [])
+    ]
+
+    return ConversationHistoryResponse(
+        conversation_id=conversation_id,
+        messages=messages,
     )
 

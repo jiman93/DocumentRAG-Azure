@@ -124,6 +124,44 @@ public class ChatController : ControllerBase
         return Content(responseBody, "application/json");
     }
 
+    [HttpGet("history/{conversationId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetHistoryAsync(string conversationId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(conversationId))
+        {
+            return BadRequest(new { error = "conversationId is required." });
+        }
+
+        var client = _httpClientFactory.CreateClient("PythonRagApi");
+        var response = await client.GetAsync($"/chat/history/{conversationId}", cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to retrieve conversation history {ConversationId}: {StatusCode} {Body}", conversationId, response.StatusCode, responseBody);
+            object? payload = null;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(responseBody))
+                {
+                    payload = JsonSerializer.Deserialize<object>(responseBody);
+                }
+            }
+            catch (JsonException)
+            {
+                // ignore
+            }
+
+            return StatusCode(
+                (int)response.StatusCode,
+                payload ?? new { error = "Failed to retrieve conversation history." });
+        }
+
+        return Content(responseBody, "application/json");
+    }
+
     private static string ComputeHash(string payload)
     {
         using var sha = SHA256.Create();

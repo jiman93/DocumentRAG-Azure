@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { Document, ChatRequest, ChatResponse } from "@/types";
+import type { Document, ChatRequest, ChatResponse, ConversationHistory, Source } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
@@ -87,13 +87,33 @@ export const documentApi = {
 // Chat APIs
 export const chatApi = {
   query: async (request: ChatRequest) => {
-    const response = await api.post<ChatResponse>("/chat/query", request);
-    return response.data;
+    const response = await api.post("/chat/query", request);
+    const data = response.data;
+
+    const sources: Source[] = (data.citations ?? []).map((citation: any) => ({
+      document_id: citation.document_id,
+      document_name: citation.document_name,
+      chunk_id: citation.chunk_id,
+      content: citation.content,
+      score: citation.score,
+      page: citation.page,
+    }));
+
+    const chatResponse: ChatResponse = {
+      answer: data.answer,
+      sources,
+      conversation_id: data.conversation_id,
+      metadata: data.metadata ?? undefined,
+      confidence_score: data.confidence_score,
+      related_questions: data.related_questions,
+    };
+
+    return chatResponse;
   },
 
   getHistory: async (conversationId: string) => {
-    const response = await api.get<{ history: ChatResponse[] }>(`/chat/history/${conversationId}`);
-    return response.data.history;
+    const response = await api.get<ConversationHistory>(`/chat/history/${conversationId}`);
+    return response.data;
   },
 };
 

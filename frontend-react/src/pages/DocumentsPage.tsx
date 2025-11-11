@@ -9,7 +9,7 @@ export default function DocumentsPage() {
   const deleteMutation = useDeleteDocument();
   const { selectedDocument, selectDocument } = useDocumentStore();
   const navigate = useNavigate();
-  const resolveId = (doc: Document) => doc.document_id || doc.id || '';
+  const resolveId = (doc: Document) => doc.document_id || doc.id || "";
 
   const handleSelect = (doc: Document) => {
     selectDocument(doc);
@@ -87,10 +87,10 @@ export default function DocumentsPage() {
           {documentList.map((doc: Document) => {
             const docId = resolveId(doc);
             return (
-            <div
-              key={docId || doc.filename}
-              onClick={() => doc.status === 'indexed' && docId && handleSelect(doc)}
-              className={`
+              <div
+                key={docId || doc.filename}
+                onClick={() => doc.status === "indexed" && docId && handleSelect(doc)}
+                className={`
                 bg-white rounded-lg border-2 p-6 transition-all cursor-pointer
                 ${
                   selectedDocument?.document_id === doc.document_id
@@ -99,68 +99,68 @@ export default function DocumentsPage() {
                 }
                 ${doc.status !== "indexed" && "opacity-75 cursor-not-allowed"}
               `}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4 flex-1">
-                  <div className="bg-primary-100 p-3 rounded-lg">
-                    <FileText className="h-6 w-6 text-primary-600" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900 truncate">
-                        {doc.filename}
-                      </h3>
-                      {getStatusIcon(doc.status)}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-4 flex-1">
+                    <div className="bg-primary-100 p-3 rounded-lg">
+                      <FileText className="h-6 w-6 text-primary-600" />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                      <span className="flex items-center">
-                        <span className="font-medium mr-1">Type:</span>
-                        {`.${doc.file_type.toUpperCase()}`}
-                      </span>
-                      <span className="flex items-center">
-                        <span className="font-medium mr-1">Size:</span>
-                        {formatFileSize(doc.file_size)}
-                      </span>
-                      {doc.chunk_count && (
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900 truncate">
+                          {doc.filename}
+                        </h3>
+                        {getStatusIcon(doc.status)}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                         <span className="flex items-center">
-                          <span className="font-medium mr-1">Chunks:</span>
-                          {doc.chunk_count}
+                          <span className="font-medium mr-1">Type:</span>
+                          {`.${doc.file_type.toUpperCase()}`}
                         </span>
-                      )}
-                      <span className="flex items-center">
-                        <span className="font-medium mr-1">Uploaded:</span>
-                        {doc.upload_time ? formatDate(doc.upload_time) : "—"}
-                      </span>
-                    </div>
+                        <span className="flex items-center">
+                          <span className="font-medium mr-1">Size:</span>
+                          {formatFileSize(doc.file_size)}
+                        </span>
+                        {doc.chunk_count && (
+                          <span className="flex items-center">
+                            <span className="font-medium mr-1">Chunks:</span>
+                            {doc.chunk_count}
+                          </span>
+                        )}
+                        <span className="flex items-center">
+                          <span className="font-medium mr-1">Uploaded:</span>
+                          {doc.upload_time ? formatDate(doc.upload_time) : "—"}
+                        </span>
+                      </div>
 
-                    <div className="mt-2">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          doc.status === "indexed"
-                            ? "bg-green-100 text-green-800"
-                            : doc.status === "processing"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
-                      </span>
+                      <div className="mt-2">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            doc.status === "indexed"
+                              ? "bg-green-100 text-green-800"
+                              : doc.status === "processing"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <button
-                  onClick={(e) => handleDelete(e, docId)}
-                  disabled={deleteMutation.isPending}
-                  className="ml-4 text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
-                  title="Delete document"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </button>
+                  <button
+                    onClick={(e) => handleDelete(e, docId)}
+                    disabled={deleteMutation.isPending}
+                    className="ml-4 text-red-600 hover:text-red-800 p-2 hover:bg-red-50 rounded transition-colors"
+                    title="Delete document"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
-            </div>
             );
           })}
         </div>

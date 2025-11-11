@@ -27,12 +27,18 @@ class ChatMessage(BaseModel):
     timestamp: datetime = Field(
         default_factory=datetime.now, description="Message timestamp"
     )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None, description="Optional metadata (citations, etc.)"
+    )
 
 
 class RAGQueryRequest(BaseModel):
     """Request for RAG query"""
 
     question: str = Field(..., description="User question", min_length=1)
+    document_id: Optional[str] = Field(
+        default=None, description="Document identifier associated with the query"
+    )
     conversation_id: Optional[str] = Field(
         default=None,
         description="Existing conversation ID to append messages to",
@@ -65,6 +71,9 @@ class RAGQueryResponse(BaseModel):
     """Response from RAG query"""
 
     answer: str = Field(..., description="Generated answer")
+    conversation_id: str = Field(
+        ..., description="Conversation ID associated with this response"
+    )
     citations: List[Citation] = Field(
         default_factory=list, description="Source citations"
     )
@@ -114,4 +123,16 @@ class ConversationResponse(BaseModel):
     message_count: int = Field(default=0, description="Number of messages")
     metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Additional metadata"
+    )
+    messages: List[ChatMessage] = Field(
+        default_factory=list, description="Conversation messages"
+    )
+
+
+class ConversationHistoryResponse(BaseModel):
+    """Conversation history payload"""
+
+    conversation_id: str = Field(..., description="Conversation identifier")
+    messages: List[ChatMessage] = Field(
+        default_factory=list, description="Conversation messages"
     )

@@ -37,6 +37,7 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1"
     });
 });
+builder.Services.AddSingleton<TimeProvider>(_ => TimeProvider.System);
 
 builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection("Gateway"));
 builder.Services.Configure<RateLimitingOptions>(builder.Configuration.GetSection("RateLimiting"));

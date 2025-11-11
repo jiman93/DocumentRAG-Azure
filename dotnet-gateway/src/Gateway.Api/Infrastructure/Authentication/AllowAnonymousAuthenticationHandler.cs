@@ -1,4 +1,3 @@
-using System;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -8,6 +7,8 @@ namespace Gateway.Api.Infrastructure.Authentication;
 
 public class AllowAnonymousAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
+    private readonly TimeProvider _timeProvider;
+
     public AllowAnonymousAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
@@ -15,7 +16,13 @@ public class AllowAnonymousAuthenticationHandler : AuthenticationHandler<Authent
         TimeProvider timeProvider)
         : base(options, logger, encoder)
     {
-        Options.TimeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
+    protected override async Task InitializeHandlerAsync()
+    {
+        await base.InitializeHandlerAsync();
+        Options.TimeProvider = _timeProvider;
     }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()

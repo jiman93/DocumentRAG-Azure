@@ -50,16 +50,28 @@ export default function ChatInterface() {
     }
   }, [selectedDocument, documentId, clearConversation]);
 
+  // Reset hydration marker when conversation is cleared
+  useEffect(() => {
+    if (!conversationId && messages.length === 0) {
+      hydratedConversationRef.current = null;
+      setLoading(false);
+      setIsHydrating(false);
+    }
+  }, [conversationId, messages.length, setLoading]);
+
   // Hydrate conversation from backend if needed
   useEffect(() => {
     let cancelled = false;
     const loadHistory = async () => {
-      if (
-        !conversationId ||
-        messages.length > 0 ||
-        isHydrating ||
-        hydratedConversationRef.current === conversationId
-      ) {
+      if (!conversationId) {
+        return;
+      }
+
+      if (isHydrating && hydratedConversationRef.current === conversationId) {
+        return;
+      }
+
+      if (messages.length > 0 && hydratedConversationRef.current === conversationId) {
         return;
       }
 
@@ -80,13 +92,13 @@ export default function ChatInterface() {
         }));
 
         setMessages(mapped);
+        hydratedConversationRef.current = conversationId ?? null;
       } catch (error) {
         console.error("Failed to hydrate conversation history", error);
       } finally {
         if (!cancelled) {
           setIsHydrating(false);
           setLoading(false);
-          hydratedConversationRef.current = conversationId ?? null;
         }
 
         if (fetchedHistory?.missing) {
@@ -111,6 +123,8 @@ export default function ChatInterface() {
 
     return () => {
       cancelled = true;
+      setIsHydrating(false);
+      setLoading(false);
     };
   }, [
     conversationId,

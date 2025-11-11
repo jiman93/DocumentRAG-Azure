@@ -129,6 +129,22 @@ class ConversationResponse(BaseModel):
     )
 
 
+class ConversationSummary(BaseModel):
+    """Conversation summary for listings"""
+
+    conversation_id: str = Field(..., description="Unique conversation identifier")
+    title: Optional[str] = Field(None, description="Conversation title")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    message_count: int = Field(default=0, description="Number of messages")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
+    last_message_preview: Optional[str] = Field(
+        None, description="Preview of the latest message"
+    )
+
+
 class ConversationHistoryResponse(BaseModel):
     """Conversation history payload"""
 

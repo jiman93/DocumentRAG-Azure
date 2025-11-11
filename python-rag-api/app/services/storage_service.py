@@ -364,11 +364,12 @@ class StorageService:
         self,
         conversation_id: str,
         messages: List[Dict[str, Any]],
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Append messages to an existing conversation"""
         if self.use_local_storage:
             return self.local_store.append_conversation_messages(
-                conversation_id, messages
+                conversation_id, messages, metadata
             )
 
         if not self.conversations_container:
@@ -385,6 +386,10 @@ class StorageService:
             conversation["messages"] = existing_messages
             conversation["message_count"] = len(existing_messages)
             conversation["updated_at"] = datetime.utcnow().isoformat()
+            if metadata:
+                merged_metadata = conversation.get("metadata", {}) or {}
+                merged_metadata.update(metadata)
+                conversation["metadata"] = merged_metadata
 
             conversation["id"] = conversation_id
             conversation["_partitionKey"] = conversation_id
@@ -393,3 +398,66 @@ class StorageService:
         except Exception as e:
             print(f"Error appending conversation messages: {e}")
             return False
+
+    def list_conversations(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """
+        List conversations with metadata and message previews
+        """
+
+        def build_preview(conversation: Dict[str, Any]) -> Dict[str, Any]:
+            messages = conversation.get("messages", [])
+            preview_text = None
+            if messages:
+                # Prefer the last assistant message, fallback to last message
+                for message in reversed(messages):
+                    if message.get("role") == "assistant" and message.get("content"):
+                        preview_text = message["content"]
+                        break
+                if not preview_text:
+                    preview_text = messages[-1].get("content")
+
+            conversation["last_message_preview"] = (
+                preview_text[:240] if preview_text else None
+            )
+            if "metadata" not in conversation or conversation["metadata"] is None:
+                conversation["metadata"] = {}
+            conversation.pop("messages", None)
+            return conversation
+
+        if self.use_local_storage:
+            conversations = self.local_store.list_conversations(limit=limit, offset=offset)
+            return [build_preview(conv) for conv in conversations]
+
+        if not self.conversations_container:
+            return []
+
+        try:
+            query = (
+                "SELECT * FROM c "
+                "ORDER BY c.updated_at DESC "
+                "OFFSET @offset LIMIT @limit"
+            )
+            items = list(
+                self.conversations_container.query_items(
+                    query=query,
+                    parameters=[
+                        {"name": "@offset", "value": offset},
+                        {"name": "@limit", "value": limit},
+                    ],
+                    enable_cross_partition_query=True,
+                )
+            )
+
+            conversations: List[Dict[str, Any]] = []
+            for item in items:
+                for field in ["_rid", "_self", "_etag", "_attachments", "_ts", "_partitionKey"]:
+                    item.pop(field, None)
+                conversations.append(build_preview(item))
+            return conversations
+        except Exception as e:
+            print(f"Error listing conversations: {e}")
+            return []

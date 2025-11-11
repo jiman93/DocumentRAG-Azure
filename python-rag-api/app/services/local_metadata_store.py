@@ -222,7 +222,7 @@ class LocalMetadataStore:
             return False
 
     def append_conversation_messages(
-        self, conversation_id: str, messages: List[dict]
+        self, conversation_id: str, messages: List[dict], metadata: Optional[dict] = None
     ) -> bool:
         """Append messages to an existing conversation"""
         if not messages:
@@ -245,16 +245,20 @@ class LocalMetadataStore:
                 existing_messages.extend(messages)
 
                 updated_at = datetime.utcnow().isoformat()
+                merged_metadata = json.loads(row["metadata"] or "{}")
+                if metadata:
+                    merged_metadata.update(metadata)
                 cursor.execute(
                     """
                     UPDATE conversations
-                    SET messages = ?, message_count = ?, updated_at = ?
+                    SET messages = ?, message_count = ?, updated_at = ?, metadata = ?
                     WHERE conversation_id = ?
                     """,
                     (
                         json.dumps(existing_messages),
                         len(existing_messages),
                         updated_at,
+                        json.dumps(merged_metadata),
                         conversation_id,
                     ),
                 )
@@ -295,6 +299,45 @@ class LocalMetadataStore:
         except Exception as e:
             print(f"Error getting conversation from local store: {e}")
             return None
+
+    def list_conversations(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[dict]:
+        """List conversations with metadata"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    SELECT *
+                    FROM conversations
+                    ORDER BY datetime(updated_at) DESC
+                    LIMIT ? OFFSET ?
+                """,
+                    (limit, offset),
+                )
+
+                rows = cursor.fetchall()
+                conversations: List[dict] = []
+                for row in rows:
+                    conversations.append(
+                        {
+                            "conversation_id": row["conversation_id"],
+                            "title": row["title"],
+                            "created_at": row["created_at"],
+                            "updated_at": row["updated_at"],
+                            "message_count": row["message_count"],
+                            "metadata": json.loads(row["metadata"] or "{}"),
+                            "messages": json.loads(row["messages"] or "[]"),
+                        }
+                    )
+                return conversations
+        except Exception as e:
+            print(f"Error listing conversations from local store: {e}")
+            return []
 
     def _row_to_document_metadata(self, row: sqlite3.Row) -> DocumentMetadata:
         """Convert database row to DocumentMetadata object"""

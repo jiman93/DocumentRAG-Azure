@@ -162,6 +162,43 @@ public class ChatController : ControllerBase
         return Content(responseBody, "application/json");
     }
 
+    [HttpGet("conversations")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListConversationsAsync([FromQuery] int limit = 50, [FromQuery] int offset = 0, CancellationToken cancellationToken = default)
+    {
+        if (limit <= 0)
+        {
+            return BadRequest(new { error = "limit must be greater than zero." });
+        }
+
+        var client = _httpClientFactory.CreateClient("PythonRagApi");
+        var response = await client.GetAsync($"/chat/conversations?limit={limit}&offset={offset}", cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Failed to list conversations: {StatusCode} {Body}", response.StatusCode, responseBody);
+            object? payload = null;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(responseBody))
+                {
+                    payload = JsonSerializer.Deserialize<object>(responseBody);
+                }
+            }
+            catch (JsonException)
+            {
+                // ignore
+            }
+
+            return StatusCode(
+                (int)response.StatusCode,
+                payload ?? new { error = "Failed to retrieve conversations." });
+        }
+
+        return Content(responseBody, "application/json");
+    }
+
     private static string ComputeHash(string payload)
     {
         using var sha = SHA256.Create();

@@ -50,6 +50,12 @@ export interface ChatResponse {
   related_questions?: string[];
 }
 
+export interface ConversationMetadata {
+  document_id?: string;
+  document_name?: string;
+  [key: string]: unknown;
+}
+
 export interface ConversationHistoryMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -60,6 +66,16 @@ export interface ConversationHistoryMessage {
 export interface ConversationHistory {
   conversation_id: string;
   messages: ConversationHistoryMessage[];
+}
+
+export interface ConversationSummary {
+  conversation_id: string;
+  title?: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+  metadata: ConversationMetadata;
+  last_message_preview?: string | null;
 }
 
 // Upload types

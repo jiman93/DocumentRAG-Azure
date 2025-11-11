@@ -1,5 +1,12 @@
 import axios from "axios";
-import type { Document, ChatRequest, ChatResponse, ConversationHistory, Source } from "@/types";
+import type {
+  Document,
+  ChatRequest,
+  ChatResponse,
+  ConversationHistory,
+  ConversationSummary,
+  Source,
+} from "@/types";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
@@ -114,6 +121,21 @@ export const chatApi = {
   getHistory: async (conversationId: string) => {
     const response = await api.get<ConversationHistory>(`/chat/history/${conversationId}`);
     return response.data;
+  },
+
+  listConversations: async (limit?: number, offset?: number) => {
+    const response = await api.get<ConversationSummary[]>("/chat/conversations", {
+      params: {
+        limit,
+        offset,
+      },
+    });
+
+    return response.data.map((conversation) => ({
+      ...conversation,
+      metadata: conversation.metadata ?? {},
+      last_message_preview: conversation.last_message_preview ?? undefined,
+    }));
   },
 };
 

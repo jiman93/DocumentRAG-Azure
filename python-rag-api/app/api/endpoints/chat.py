@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from typing import AsyncGenerator
+from typing import AsyncGenerator, List
 
 from app.models.chat import (
     RAGQueryRequest,
@@ -15,6 +15,7 @@ from app.models.chat import (
     ConversationCreateRequest,
     ConversationResponse,
     ConversationHistoryResponse,
+    ConversationSummary,
     ChatMessage,
 )
 from app.services.rag_service import RAGService
@@ -223,4 +224,40 @@ async def get_conversation_history(
         conversation_id=conversation_id,
         messages=messages,
     )
+
+
+@router.get("/conversations", response_model=List[ConversationSummary])
+async def list_conversations(
+    limit: int = 50,
+    offset: int = 0,
+    storage_service: StorageService = Depends(get_storage_service),
+):
+    """List conversations with metadata"""
+    conversations = storage_service.list_conversations(limit=limit, offset=offset)
+    summaries: List[ConversationSummary] = []
+
+    for conversation in conversations:
+        try:
+            created_at = datetime.fromisoformat(conversation["created_at"])
+        except (KeyError, ValueError):
+            created_at = datetime.utcnow()
+
+        try:
+            updated_at = datetime.fromisoformat(conversation["updated_at"])
+        except (KeyError, ValueError):
+            updated_at = created_at
+
+        metadata = conversation.get("metadata") or {}
+        summary = ConversationSummary(
+            conversation_id=conversation["conversation_id"],
+            title=conversation.get("title"),
+            created_at=created_at,
+            updated_at=updated_at,
+            message_count=conversation.get("message_count", 0),
+            metadata=metadata,
+            last_message_preview=conversation.get("last_message_preview"),
+        )
+        summaries.append(summary)
+
+    return summaries
 

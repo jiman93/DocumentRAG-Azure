@@ -175,6 +175,21 @@ class RAGService:
         if not self.vector_store.is_initialized():
             raise ValueError("No documents indexed yet. Index documents first.")
 
+        document_name: Optional[str] = None
+        if request.document_id:
+            try:
+                document_record = self.storage_service.get_document_metadata(
+                    request.document_id
+                )
+                if document_record:
+                    document_name = document_record.filename
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "Unable to fetch document metadata for document_id=%s: %s",
+                    request.document_id,
+                    exc,
+                )
+
         # Step 1: Enhance query with conversation context
         enhanced_query = self._enhance_query(
             request.question, request.conversation_history
@@ -255,6 +270,12 @@ class RAGService:
             },
         }
 
+        conversation_metadata: Dict[str, Any] = {}
+        if request.document_id:
+            conversation_metadata["document_id"] = request.document_id
+        if document_name:
+            conversation_metadata["document_name"] = document_name
+
         conversation_id = request.conversation_id
         if not conversation_id:
             conversation_id = str(uuid.uuid4())
@@ -267,9 +288,7 @@ class RAGService:
                     "updated_at": datetime.utcnow().isoformat(),
                     "message_count": 0,
                     "messages": [],
-                    "metadata": {
-                        "document_id": request.document_id,
-                    },
+                    "metadata": conversation_metadata,
                 },
             )
             if not conversation_created:
@@ -291,9 +310,7 @@ class RAGService:
                         "updated_at": datetime.utcnow().isoformat(),
                         "message_count": 0,
                         "messages": [],
-                        "metadata": {
-                            "document_id": request.document_id,
-                        },
+                        "metadata": conversation_metadata,
                     },
                 )
 
@@ -313,7 +330,9 @@ class RAGService:
                 },
             ]
             appended = self.storage_service.append_conversation_messages(
-                conversation_id, conversation_messages
+                conversation_id,
+                conversation_messages,
+                metadata=conversation_metadata if conversation_metadata else None,
             )
             if not appended:
                 logger.warning(

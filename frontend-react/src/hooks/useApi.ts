@@ -54,6 +54,7 @@ export const useChatQuery = () => {
     setDocumentId,
     documentId,
   } = useChatStore();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (request: ChatRequest) => {
@@ -106,6 +107,7 @@ export const useChatQuery = () => {
       }
 
       setConversationId(data.conversation_id);
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: () => {
       setLoading(false);
@@ -113,5 +115,13 @@ export const useChatQuery = () => {
     onSettled: () => {
       setLoading(false);
     },
+  });
+};
+
+export const useConversations = () => {
+  return useQuery({
+    queryKey: ["conversations"],
+    queryFn: () => chatApi.listConversations(),
+    refetchInterval: 15000,
   });
 };

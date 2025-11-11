@@ -71,7 +71,7 @@ public class DocumentsController : ControllerBase
                 file.ContentType);
             content.Add(streamContent, "file", file.FileName);
 
-            var response = await client.PostAsync("/api/v1/documents/upload", content);
+            var response = await client.PostAsync("/documents/upload", content);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -129,7 +129,7 @@ public class DocumentsController : ControllerBase
         try
         {
             var client = _httpClientFactory.CreateClient("PythonRagApi");
-            var response = await client.GetAsync("/api/v1/documents");
+            var response = await client.GetAsync("/documents");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -174,7 +174,7 @@ public class DocumentsController : ControllerBase
         try
         {
             var client = _httpClientFactory.CreateClient("PythonRagApi");
-            var response = await client.DeleteAsync($"/api/v1/documents/{documentId}");
+            var response = await client.DeleteAsync($"/documents/{documentId}");
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {

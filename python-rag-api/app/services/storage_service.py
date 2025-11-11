@@ -36,6 +36,7 @@ class StorageService:
         file_path: str,
         document_id: str,
         metadata: Optional[Dict[str, Any]] = None,
+        preferred_filename: Optional[str] = None,
     ) -> Optional[str]:
         """
         Upload document to Azure Blob Storage
@@ -61,8 +62,8 @@ class StorageService:
             if not container_client.exists():
                 container_client.create_container()
 
-            # Sanitize filename
-            filename = sanitize_filename(os.path.basename(file_path))
+            base_name = preferred_filename or os.path.basename(file_path)
+            filename = sanitize_filename(base_name)
             blob_name = f"{document_id}/{filename}"
 
             # Upload file

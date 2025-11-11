@@ -86,6 +86,7 @@ class RAGService:
         self,
         file_path: str,
         document_id: Optional[str] = None,
+        original_filename: Optional[str] = None,
     ) -> DocumentMetadata:
         """
         Index a document: Load → Chunk → Embed → Store
@@ -104,17 +105,21 @@ class RAGService:
             document_id = generate_document_id(file_path)
 
         # Create metadata
-        filename = os.path.basename(file_path)
-        file_type = os.path.splitext(filename)[1].lower()
+        display_filename = original_filename or os.path.basename(file_path)
+        file_type = os.path.splitext(display_filename)[1].lower()
+        if file_type.startswith("."):
+            file_type = file_type[1:]
         file_size = os.path.getsize(file_path)
 
         document_metadata = DocumentMetadata(
             document_id=document_id,
-            filename=filename,
+            filename=display_filename,
             file_type=file_type,
             file_size=file_size,
             status=DocumentStatus.PROCESSING,
         )
+        if original_filename:
+            document_metadata.metadata["original_filename"] = original_filename
 
         try:
             # Step 1: Process document (load and chunk)
@@ -130,7 +135,8 @@ class RAGService:
             blob_url = self.storage_service.upload_document_to_blob(
                 file_path=file_path,
                 document_id=document_id,
-                metadata={"filename": filename, "file_type": file_type},
+                metadata={"filename": display_filename, "file_type": file_type},
+                preferred_filename=display_filename,
             )
 
             # Step 5: Update metadata

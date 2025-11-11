@@ -31,18 +31,24 @@ api.interceptors.response.use(
 );
 
 // Document APIs
-const mapDocument = (doc: any): Document => ({
-  document_id: doc.document_id,
-  filename: doc.filename,
-  file_type: doc.file_type,
-  file_size: doc.file_size,
-  status: doc.status,
-  upload_time: doc.upload_time,
-  indexed_at: doc.indexed_at ?? null,
-  chunk_count: doc.chunk_count ?? undefined,
-  blob_url: doc.blob_url ?? undefined,
-  metadata: doc.metadata ?? undefined,
-});
+const mapDocument = (doc: any): Document => {
+  const rawType = doc.file_type ?? '';
+  const normalizedType =
+    typeof rawType === 'string' ? rawType.replace(/^\./, '').toLowerCase() : '';
+
+  return {
+    document_id: doc.document_id,
+    filename: doc.filename,
+    file_type: normalizedType,
+    file_size: doc.file_size,
+    status: doc.status,
+    upload_time: doc.upload_time,
+    indexed_at: doc.indexed_at ?? null,
+    chunk_count: doc.chunk_count ?? undefined,
+    blob_url: doc.blob_url ?? undefined,
+    metadata: doc.metadata ?? undefined,
+  };
+};
 
 export const documentApi = {
   upload: async (file: File, onProgress?: (progress: number) => void) => {

@@ -114,7 +114,7 @@ export default function DocumentsPage() {
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                       <span className="flex items-center">
                         <span className="font-medium mr-1">Type:</span>
-                        {doc.file_type.toUpperCase()}
+                        {`.${doc.file_type.toUpperCase()}`}
                       </span>
                       <span className="flex items-center">
                         <span className="font-medium mr-1">Size:</span>
@@ -128,7 +128,7 @@ export default function DocumentsPage() {
                       )}
                       <span className="flex items-center">
                         <span className="font-medium mr-1">Uploaded:</span>
-                        {formatDate(doc.upload_time)}
+                        {doc.upload_time ? formatDate(doc.upload_time) : '—'}
                       </span>
                     </div>
 

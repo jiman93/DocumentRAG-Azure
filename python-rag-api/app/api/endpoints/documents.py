@@ -85,6 +85,7 @@ async def upload_document(
         document_metadata = rag_service.index_document(
             file_path=tmp_file_path,
             document_id=document_id,
+            original_filename=file.filename,
         )
         
         logger.info(

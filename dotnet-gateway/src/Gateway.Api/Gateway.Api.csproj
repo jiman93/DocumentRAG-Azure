@@ -14,10 +14,10 @@
 
     <!-- Authentication & Authorization -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Identity.Web" Version="2.15.0" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="2.19.0" />
 
     <!-- Caching -->
-    <PackageReference Include="StackExchange.Redis" Version="2.7.0" />
+    <PackageReference Include="StackExchange.Redis" Version="2.7.4" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.0" />
 
     <!-- Rate Limiting -->
@@ -43,8 +43,8 @@
     <PackageReference Include="AspNetCore.HealthChecks.UI.InMemory.Storage" Version="7.0.0" />
 
     <!-- Azure -->
-    <PackageReference Include="Azure.Identity" Version="1.10.0" />
-    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.5.0" />
+    <PackageReference Include="Azure.Identity" Version="1.11.4" />
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.6.0" />
     <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.21.0" />
   </ItemGroup>
 

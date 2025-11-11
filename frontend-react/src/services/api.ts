@@ -32,11 +32,12 @@ api.interceptors.response.use(
 
 // Document APIs
 const mapDocument = (doc: any): Document => {
-  const rawType = doc.file_type ?? '';
+  const rawType = doc.file_type ?? "";
   const normalizedType =
-    typeof rawType === 'string' ? rawType.replace(/^\./, '').toLowerCase() : '';
+    typeof rawType === "string" ? rawType.replace(/^\./, "").toLowerCase() : "";
 
   return {
+    id: doc.document_id,
     document_id: doc.document_id,
     filename: doc.filename,
     file_type: normalizedType,

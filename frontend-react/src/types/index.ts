@@ -2,6 +2,7 @@
 export type DocumentStatus = 'uploaded' | 'processing' | 'indexed' | 'failed';
 
 export interface Document {
+  id?: string;
   document_id: string;
   filename: string;
   file_type: string;

@@ -20,11 +20,16 @@ export const useDocumentStore = create<DocumentStore>()(
       addDocument: (document) =>
         set((state) => ({ documents: [...state.documents, document] })),
       removeDocument: (id) =>
-        set((state) => ({
-          documents: state.documents.filter((doc) => doc.document_id !== id),
-          selectedDocument:
-            state.selectedDocument?.document_id === id ? null : state.selectedDocument,
-        })),
+        set((state) => {
+          const match = (doc: Document) =>
+            doc.document_id === id || (doc.id ? doc.id === id : false);
+          const filtered = state.documents.filter((doc) => !match(doc));
+          const selected =
+            state.selectedDocument && match(state.selectedDocument)
+              ? null
+              : state.selectedDocument;
+          return { documents: filtered, selectedDocument: selected };
+        }),
       selectDocument: (document) => set({ selectedDocument: document }),
     }),
     {

@@ -47,6 +47,10 @@ This document tracks the main milestones we have completed while bringing the .N
   - Default port: 7001 (HTTP only)
   - Health checks UI polls `http://localhost:7001/health`, eliminating the earlier HTTPS handshake warnings.
 
+- **Testing strategy**
+  - Smoke test with both services running locally (`python-rag-api` on 8000, gateway on 7001) and exercise Swagger endpoints (`/documents`, `/chat`).
+  - Optional automation: consider xUnit integration tests via `WebApplicationFactory` and a containerized Python API once regression coverage is needed.
+
 - **Warnings**
   - `Azure.Identity` 1.10.0 flagged for security advisories → plan to upgrade.
   - `ISystemClock` is obsolete in the custom authentication handler → refactor to new `TimeProvider` when convenient.

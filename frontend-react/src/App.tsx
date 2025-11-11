@@ -4,9 +4,8 @@ import Layout from "@/components/Layout";
 import HomePage from "@/pages/HomePage";
 import DocumentsPage from "@/pages/DocumentsPage";
 import ChatPage from "@/pages/ChatPage";
-import LoginPage from "@/pages/LoginPage";
-import ProtectedRoute from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/contexts/AuthContext";
+import LoginPage from "@/pages/LoginPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,13 +23,7 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route
-              element={
-                <ProtectedRoute>
-                  <Layout />
-                </ProtectedRoute>
-              }
-            >
+            <Route element={<Layout />}>
               <Route index element={<HomePage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="chat" element={<ChatPage />} />

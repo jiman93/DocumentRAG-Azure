@@ -150,6 +150,11 @@ cd ../..
 ./scripts/deploy-all.sh
 ```
 
+### CI/CD
+
+- The `.github/workflows/deploy-gateway.yml` workflow builds and deploys the .NET gateway to the `docrag-dev-api` Azure Web App whenever changes are pushed to `main`.
+- Configure the repository secret `AZURE_WEBAPP_PUBLISH_PROFILE` with the publish profile XML downloaded from the Azure portal to enable automated deployments.
+
 ## 📁 Project Structure
 
 ```

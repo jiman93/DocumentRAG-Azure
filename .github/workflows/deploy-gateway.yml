@@ -1,0 +1,54 @@
+name: Deploy Gateway API
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dotnet-gateway/**'
+      - '.github/workflows/deploy-gateway.yml'
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  WORKING_DIRECTORY: dotnet-gateway/src/Gateway.Api
+  ARTIFACT_NAME: gateway-api-publish
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: dotnet restore
+
+      - name: Build
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: dotnet publish --configuration Release --output publish
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.WORKING_DIRECTORY }}/publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: docrag-dev-api
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ env.WORKING_DIRECTORY }}/publish
+

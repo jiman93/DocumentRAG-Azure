@@ -4,7 +4,8 @@ import ReactMarkdown from "react-markdown";
 import { useChatQuery } from "@/hooks/useApi";
 import { useChatStore, useDocumentStore } from "@/store";
 import { chatApi } from "@/services/api";
-import type { ChatMessage } from "@/types";
+import type { ChatMessage, ConversationHistory } from "@/types";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function ChatInterface() {
   const [input, setInput] = useState("");
@@ -18,10 +19,19 @@ export default function ChatInterface() {
     setMessages,
     setLoading,
     documentId,
+    setDocumentId,
+    setConversationId,
   } = useChatStore();
-  const { selectedDocument } = useDocumentStore();
+  const { selectedDocument, selectDocument, removeDocument } = useDocumentStore();
   const chatMutation = useChatQuery();
   const [isHydrating, setIsHydrating] = useState(false);
+  const hydratedConversationRef = useRef<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // Ensure loading flag resets when the component mounts
+  useEffect(() => {
+    setLoading(false);
+  }, [setLoading]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -44,14 +54,21 @@ export default function ChatInterface() {
   useEffect(() => {
     let cancelled = false;
     const loadHistory = async () => {
-      if (!conversationId || messages.length > 0 || isHydrating) {
+      if (
+        !conversationId ||
+        messages.length > 0 ||
+        isHydrating ||
+        hydratedConversationRef.current === conversationId
+      ) {
         return;
       }
 
+      let fetchedHistory: ConversationHistory | null = null;
       try {
         setIsHydrating(true);
         setLoading(true);
         const history = await chatApi.getHistory(conversationId);
+        fetchedHistory = history;
         if (cancelled) return;
 
         const mapped: ChatMessage[] = history.messages.map((msg, index) => ({
@@ -69,6 +86,23 @@ export default function ChatInterface() {
         if (!cancelled) {
           setIsHydrating(false);
           setLoading(false);
+          hydratedConversationRef.current = conversationId ?? null;
+        }
+
+        if (fetchedHistory?.missing) {
+          hydratedConversationRef.current = null;
+          if (selectedDocument) {
+            removeDocument(selectedDocument.document_id);
+            selectDocument(null);
+          } else if (documentId) {
+            removeDocument(documentId);
+          }
+          clearConversation();
+          setDocumentId(null);
+          setConversationId(null);
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+          return;
         }
       }
     };
@@ -78,7 +112,16 @@ export default function ChatInterface() {
     return () => {
       cancelled = true;
     };
-  }, [conversationId, messages.length, isHydrating, setMessages, setLoading]);
+  }, [
+    conversationId,
+    messages.length,
+    isHydrating,
+    setMessages,
+    setLoading,
+    clearConversation,
+    selectDocument,
+    queryClient,
+  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,11 +142,22 @@ export default function ChatInterface() {
     <div className="flex flex-col h-full">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <div className="text-center text-gray-500 mt-12">
-            <FileText className="mx-auto h-16 w-16 mb-4 text-gray-300" />
+        {showLoading && conversationId && messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-gray-500">
+            <div className="bg-gray-100 rounded-lg px-4 py-3">
+              <div className="flex space-x-2">
+                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400" />
+                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 delay-100" />
+                <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 delay-200" />
+              </div>
+            </div>
+            <p className="mt-4 text-sm font-medium text-gray-600">Restoring conversation…</p>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="mt-12 text-center text-gray-500">
+            <FileText className="mx-auto mb-4 h-16 w-16 text-gray-300" />
             <p className="text-lg font-medium">No messages yet</p>
-            <p className="text-sm mt-2">
+            <p className="mt-2 text-sm">
               {selectedDocument
                 ? `Ask a question about "${selectedDocument.filename}"`
                 : "Upload a document and start asking questions"}
@@ -129,13 +183,13 @@ export default function ChatInterface() {
 
                   {/* Sources */}
                   {message.sources && message.sources.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-300">
-                      <p className="text-xs font-semibold text-gray-600 mb-2">Sources:</p>
+                    <div className="mt-3 border-t border-gray-300 pt-3">
+                      <p className="mb-2 text-xs font-semibold text-gray-600">Sources:</p>
                       <div className="space-y-1">
                         {message.sources.map((source, idx) => (
                           <div
                             key={idx}
-                            className="text-xs bg-white rounded p-2 border border-gray-200"
+                            className="rounded border border-gray-200 bg-white p-2 text-xs"
                           >
                             <div className="flex items-center justify-between">
                               <span className="font-medium text-gray-700">
@@ -146,7 +200,7 @@ export default function ChatInterface() {
                                 Score: {(source.score * 100).toFixed(0)}%
                               </span>
                             </div>
-                            <p className="text-gray-600 mt-1 line-clamp-2">{source.content}</p>
+                            <p className="mt-1 line-clamp-2 text-gray-600">{source.content}</p>
                           </div>
                         ))}
                       </div>
@@ -159,7 +213,7 @@ export default function ChatInterface() {
         )}
 
         {/* Loading Indicator */}
-        {showLoading && (
+        {showLoading && messages.length > 0 && (
           <div className="flex justify-start">
             <div className="bg-gray-100 rounded-lg px-4 py-3">
               <div className="flex space-x-2">
@@ -207,7 +261,7 @@ export default function ChatInterface() {
                 ? "Ask a question about this document..."
                 : "Upload a document first..."
             }
-            disabled={showLoading || !selectedDocument}
+            disabled={showLoading}
             className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100"
           />
           <button

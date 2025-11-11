@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -31,6 +32,13 @@ public class ChatController : ControllerBase
     private readonly ILogger<ChatController> _logger;
     private readonly GatewayOptions _gatewayOptions;
     private readonly ICacheVersionProvider _cacheVersionProvider;
+
+    private sealed record ConversationHistoryResponse(string ConversationId)
+    {
+        public string Conversation_id { get; init; } = ConversationId;
+        public object[] Messages { get; init; } = Array.Empty<object>();
+        public bool Missing { get; init; } = true;
+    }
 
     public ChatController(
         IHttpClientFactory httpClientFactory,
@@ -137,6 +145,13 @@ public class ChatController : ControllerBase
         var client = _httpClientFactory.CreateClient("PythonRagApi");
         var response = await client.GetAsync($"/chat/history/{conversationId}", cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            _logger.LogInformation("Conversation {ConversationId} not found when retrieving history.", conversationId);
+            var missingPayload = JsonSerializer.Serialize(new ConversationHistoryResponse(conversationId), SerializerOptions);
+            return Content(missingPayload, "application/json");
+        }
 
         if (!response.IsSuccessStatusCode)
         {

@@ -43,7 +43,7 @@ interface ChatStore {
   addMessage: (message: ChatMessage) => void;
   setMessages: (messages: ChatMessage[]) => void;
   clearConversation: () => void;
-  setConversationId: (id: string) => void;
+  setConversationId: (id: string | null) => void;
   setDocumentId: (id: string | null) => void;
   setLoading: (loading: boolean) => void;
 }
@@ -57,7 +57,8 @@ export const useChatStore = create<ChatStore>()(
       isLoading: false,
       addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
       setMessages: (messages) => set({ messages }),
-      clearConversation: () => set({ messages: [], conversationId: null, documentId: null }),
+      clearConversation: () =>
+        set({ messages: [], conversationId: null, documentId: null, isLoading: false }),
       setConversationId: (id) => set({ conversationId: id }),
       setDocumentId: (id) => set({ documentId: id }),
       setLoading: (loading) => set({ isLoading: loading }),

@@ -66,6 +66,7 @@ export interface ConversationHistoryMessage {
 export interface ConversationHistory {
   conversation_id: string;
   messages: ConversationHistoryMessage[];
+  missing?: boolean;
 }
 
 export interface ConversationSummary {

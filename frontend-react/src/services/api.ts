@@ -119,8 +119,19 @@ export const chatApi = {
   },
 
   getHistory: async (conversationId: string) => {
-    const response = await api.get<ConversationHistory>(`/chat/history/${conversationId}`);
-    return response.data;
+    try {
+      const response = await api.get<ConversationHistory>(`/chat/history/${conversationId}`);
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return {
+          conversation_id: conversationId,
+          messages: [],
+          missing: true,
+        };
+      }
+      throw error;
+    }
   },
 
   listConversations: async (limit?: number, offset?: number) => {

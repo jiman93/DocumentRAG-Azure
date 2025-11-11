@@ -1,4 +1,5 @@
 using Gateway.Api.Configuration;
+using Gateway.Api.Infrastructure.Caching;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -18,17 +19,20 @@ public class DocumentsController : ControllerBase
     private readonly IDistributedCache _cache;
     private readonly ILogger<DocumentsController> _logger;
     private readonly GatewayOptions _gatewayOptions;
+    private readonly ICacheVersionProvider _cacheVersionProvider;
 
     public DocumentsController(
         IHttpClientFactory httpClientFactory,
         IDistributedCache cache,
         ILogger<DocumentsController> logger,
-        IOptions<GatewayOptions> gatewayOptions)
+        IOptions<GatewayOptions> gatewayOptions,
+        ICacheVersionProvider cacheVersionProvider)
     {
         _httpClientFactory = httpClientFactory;
         _cache = cache;
         _logger = logger;
         _gatewayOptions = gatewayOptions.Value;
+        _cacheVersionProvider = cacheVersionProvider;
     }
 
     /// <summary>
@@ -52,52 +56,53 @@ public class DocumentsController : ControllerBase
             return BadRequest(new { error = $"File size exceeds maximum of {maxSize / 1_048_576}MB" });
         }
 
-        _logger.LogInformation("Uploading document: {FileName}, Size: {FileSize}", 
+        _logger.LogInformation("Uploading document: {FileName}, Size: {FileSize}",
             file.FileName, file.Length);
 
         try
         {
             var client = _httpClientFactory.CreateClient("PythonRagApi");
-            
+
             using var content = new MultipartFormDataContent();
             using var fileStream = file.OpenReadStream();
             using var streamContent = new StreamContent(fileStream);
-            
+
             streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
                 file.ContentType);
             content.Add(streamContent, "file", file.FileName);
 
             var response = await client.PostAsync("/api/v1/documents/upload", content);
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("Upload failed: {StatusCode}, {Error}", 
+                _logger.LogError("Upload failed: {StatusCode}, {Error}",
                     response.StatusCode, errorContent);
-                return StatusCode((int)response.StatusCode, 
+                return StatusCode((int)response.StatusCode,
                     new { error = "Document upload failed" });
             }
 
             var result = await response.Content.ReadAsStringAsync();
-            
+
             // Invalidate documents cache
             if (_gatewayOptions.EnableCaching)
             {
                 await _cache.RemoveAsync("documents:list");
+                await _cacheVersionProvider.BumpChatVersionAsync(HttpContext.RequestAborted);
             }
-            
+
             return Ok(JsonSerializer.Deserialize<object>(result));
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "HTTP error during document upload");
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, 
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
                 new { error = "RAG service unavailable" });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading document");
-            return StatusCode(StatusCodes.Status500InternalServerError, 
+            return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "Internal server error" });
         }
     }
@@ -110,10 +115,10 @@ public class DocumentsController : ControllerBase
     public async Task<IActionResult> ListDocuments()
     {
         var cacheKey = "documents:list";
-        
+
         if (_gatewayOptions.EnableCaching)
         {
-            var cachedData = await _cache.GetStringAsync(cacheKey);
+            var cachedData = await _cache.GetStringAsync(cacheKey, HttpContext.RequestAborted);
             if (!string.IsNullOrEmpty(cachedData))
             {
                 _logger.LogInformation("Returning cached documents list");
@@ -125,31 +130,33 @@ public class DocumentsController : ControllerBase
         {
             var client = _httpClientFactory.CreateClient("PythonRagApi");
             var response = await client.GetAsync("/api/v1/documents");
-            
+
             if (!response.IsSuccessStatusCode)
             {
-                return StatusCode((int)response.StatusCode, 
+                return StatusCode((int)response.StatusCode,
                     new { error = "Failed to retrieve documents" });
             }
 
             var result = await response.Content.ReadAsStringAsync();
-            
+
             if (_gatewayOptions.EnableCaching)
             {
-                var expirationMinutes = Math.Max(1, _gatewayOptions.CacheExpirationMinutes);
+                var expirationMinutes = _gatewayOptions.DocumentListCacheMinutes > 0
+                    ? _gatewayOptions.DocumentListCacheMinutes
+                    : Math.Max(1, _gatewayOptions.CacheExpirationMinutes);
                 var cacheOptions = new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(expirationMinutes)
                 };
-                await _cache.SetStringAsync(cacheKey, result, cacheOptions);
+                await _cache.SetStringAsync(cacheKey, result, cacheOptions, HttpContext.RequestAborted);
             }
-            
+
             return Ok(JsonSerializer.Deserialize<object>(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error listing documents");
-            return StatusCode(StatusCodes.Status500InternalServerError, 
+            return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "Internal server error" });
         }
     }
@@ -168,15 +175,15 @@ public class DocumentsController : ControllerBase
         {
             var client = _httpClientFactory.CreateClient("PythonRagApi");
             var response = await client.DeleteAsync($"/api/v1/documents/{documentId}");
-            
+
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 return NotFound(new { error = "Document not found" });
             }
-            
+
             if (!response.IsSuccessStatusCode)
             {
-                return StatusCode((int)response.StatusCode, 
+                return StatusCode((int)response.StatusCode,
                     new { error = "Failed to delete document" });
             }
 
@@ -184,15 +191,16 @@ public class DocumentsController : ControllerBase
             if (_gatewayOptions.EnableCaching)
             {
                 await _cache.RemoveAsync("documents:list");
+                await _cacheVersionProvider.BumpChatVersionAsync(HttpContext.RequestAborted);
             }
-            
+
             var result = await response.Content.ReadAsStringAsync();
             return Ok(JsonSerializer.Deserialize<object>(result));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting document");
-            return StatusCode(StatusCodes.Status500InternalServerError, 
+            return StatusCode(StatusCodes.Status500InternalServerError,
                 new { error = "Internal server error" });
         }
     }

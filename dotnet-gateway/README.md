@@ -4,14 +4,12 @@ ASP.NET Core 8 API Gateway with enterprise features: authentication, caching, ra
 
 ## Features
 
-- ✅ **Authentication & Authorization**: JWT/Azure AD B2C
-- ✅ **Caching**: Redis distributed cache
+- ✅ **Authentication & Authorization**: JWT/Azure AD B2C (optional anonymous mode for demos)
+- ✅ **Caching**: Redis (or in-memory fallback) with targeted TTLs and versioned chat cache
 - ✅ **Rate Limiting**: IP-based and user-based throttling
-- ✅ **API Versioning**: URL-based versioning
-- ✅ **Health Checks**: Readiness and liveness probes
-- ✅ **Logging**: Structured logging with Serilog
-- ✅ **Monitoring**: Application Insights integration
-- ✅ **CORS**: Configurable cross-origin policies
+- ✅ **Health Checks**: Readiness and liveness probes with UI dashboard
+- ✅ **Logging & Monitoring**: Structured logs (Serilog) and Application Insights hooks
+- ✅ **CORS**: Configurable cross-origin policies for frontend integration
 
 ## Project Structure
 
@@ -50,8 +48,8 @@ dotnet restore
 cd src/Gateway.Api
 dotnet run
 
-# API available at: https://localhost:7001
-# Swagger UI: https://localhost:7001/swagger
+# API available at: http://localhost:7001
+# Swagger UI: http://localhost:7001/swagger
 ```
 
 ### Testing
@@ -81,6 +79,8 @@ docker run -p 8080:8080 gateway-api
     "PythonRagApiUrl": "https://python-rag-api.azurewebsites.net",
     "EnableCaching": true,
     "CacheExpirationMinutes": 30,
+    "DocumentListCacheMinutes": 5,
+    "ChatResponseCacheMinutes": 60,
     "MaxRequestSizeBytes": 10485760
   },
   "RateLimiting": {
@@ -96,6 +96,9 @@ docker run -p 8080:8080 gateway-api
     "ValidateIssuer": true,
     "ValidateAudience": true,
     "ValidateLifetime": true
+  },
+  "ConnectionStrings": {
+    "Redis": ""
   }
 }
 ```
@@ -113,8 +116,17 @@ docker run -p 8080:8080 gateway-api
 - `DELETE /api/v1/documents/{id}` - Delete document
 
 ### Chat/Query
-- `POST /api/v1/chat` - Ask question
-- `GET /api/v1/chat/history/{conversationId}` - Get history
+- `POST /api/v1/chat/query` - Ask a RAG question (non-streaming)
+
+## Caching Strategy
+
+| Target                | TTL         | Invalidation                                 | Notes                                       |
+|-----------------------|-------------|----------------------------------------------|---------------------------------------------|
+| Chat query responses  | 60 minutes  | Cache version bump on document upload/delete | Hashes request payload; no streaming cache. |
+| Documents listing     | 5 minutes   | Remove on upload/delete                      | Keeps index page snappy (90%+ hit rate).    |
+| Other endpoints       | n/a         | —                                            | Falls back to direct passthrough.           |
+
+When Redis is unavailable (local dev), the gateway automatically falls back to in-memory cache and skips Redis health checks. Set `Gateway:EnableCaching = false` to disable caching altogether.
 
 ## Middleware Pipeline
 

@@ -1,5 +1,6 @@
 using Gateway.Api.Configuration;
 using Gateway.Api.Infrastructure.Authentication;
+using Gateway.Api.Infrastructure.Caching;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -10,6 +11,7 @@ using Serilog;
 using System.Threading.RateLimiting;
 using HealthChecks.Uris;
 using Microsoft.OpenApi.Models;
+using HealthChecks.UI.Client;
 using GatewayAuthenticationOptions = Gateway.Api.Configuration.AuthenticationOptions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,6 +40,7 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 builder.Services.AddSingleton<TimeProvider>(_ => TimeProvider.System);
+builder.Services.AddSingleton<ICacheVersionProvider, CacheVersionProvider>();
 
 builder.Services.Configure<GatewayOptions>(builder.Configuration.GetSection("Gateway"));
 builder.Services.Configure<RateLimitingOptions>(builder.Configuration.GetSection("RateLimiting"));
@@ -221,14 +224,19 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Health check endpoints
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
 app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
-    Predicate = check => check.Tags.Contains("ready")
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
-    Predicate = _ => false
+    Predicate = _ => false,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
 });
 
 app.MapHealthChecksUI();

@@ -15,7 +15,11 @@ This document tracks the main milestones we have completed while bringing the .N
   - Added `AllowAnonymousAuthenticationHandler` so the gateway can operate unsecured when `Authentication.Enabled = false`.
 - **Distributed caching**
   - Conditional StackExchange Redis cache if `ConnectionStrings:Redis` is provided; falls back to in‑memory cache when disabled.
-  - `DocumentsController` respects cache settings via injected `GatewayOptions`.
+  - Document list responses cached for 5 minutes (`documents:list` key) and invalidated on upload/delete.
+  - Chat query responses cached for 60 minutes with version-based busting when documents change.
+- **Chat proxy**
+  - `/api/v1/chat/query` forwards to the Python RAG endpoint with retry policies.
+  - Cache keys hash the request payload; streaming responses are rejected early (not supported yet).
 - **Rate limiting**
   - Implemented partitioned fixed‑window throttling (per user / IP) driven by `RateLimitingOptions`.
   - Global “no limiter” fallback when rate limiting is disabled.
@@ -48,16 +52,16 @@ This document tracks the main milestones we have completed while bringing the .N
   - Health checks UI polls `http://localhost:7001/health`, eliminating the earlier HTTPS handshake warnings.
 
 - **Testing strategy**
-  - Smoke test with both services running locally (`python-rag-api` on 8000, gateway on 7001) and exercise Swagger endpoints (`/documents`, `/chat`).
+  - Smoke test with both services running locally (`python-rag-api` on 8000, gateway on 7001) and exercise Swagger endpoints (`/documents`, `/chat/query`).
   - Optional automation: consider xUnit integration tests via `WebApplicationFactory` and a containerized Python API once regression coverage is needed.
 
 - **Warnings**
   - `Azure.Identity` 1.10.0 flagged for security advisories → plan to upgrade.
-  - `ISystemClock` is obsolete in the custom authentication handler → refactor to new `TimeProvider` when convenient.
+  - Redis health check will surface as unhealthy when no server is available; disable caching locally if you don't want the noise.
 
 ## Remaining Work / Ideas
 
-- Harden `AllowAnonymousAuthenticationHandler` (replace obsolete API).
+- ~~Harden `AllowAnonymousAuthenticationHandler` (replace obsolete API).~~
 - ~~Wire up HTTPS locally (or change Health Checks UI configuration to poll HTTP).~~ (Switched UI probe to HTTP.)
 - Add more granular logging/metrics (Serilog sinks, Application Insights telemetry).
 - Document build/test workflow (dotnet test, linting) and CI integration.

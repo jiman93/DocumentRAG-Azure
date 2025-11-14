@@ -62,7 +62,11 @@ export default function Layout() {
                     to={item.href}
                     className={`
                       flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors
-                      ${active ? "bg-primary-50 text-primary-700" : "text-gray-700 hover:bg-gray-100"}
+                      ${
+                        active
+                          ? "bg-primary-50 text-primary-700"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }
                     `}
                     onClick={() => setSidebarOpen(false)}
                   >

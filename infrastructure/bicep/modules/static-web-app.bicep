@@ -13,7 +13,7 @@ param repositoryBranch string = 'main'
 @description('Optional tags to apply to the resource')
 param tags object = {}
 
-resource staticWebApp 'Microsoft.Web/staticSites@2023-10-01' = {
+resource staticWebApp 'Microsoft.Web/staticSites@2023-12-01' = {
   name: staticWebAppName
   location: location
   tags: tags

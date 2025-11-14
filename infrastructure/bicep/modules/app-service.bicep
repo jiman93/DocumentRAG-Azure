@@ -7,6 +7,12 @@ param location string
 @description('Resource ID of the App Service plan')
 param planId string
 
+@description('Runtime stack to configure (e.g. DOTNET|9.0, PYTHON|3.11)')
+param linuxFxVersion string
+
+@description('Optional startup command (e.g. gunicorn main:app --bind=0.0.0.0:8000)')
+param startupCommand string = ''
+
 @description('Key/value pairs for application settings')
 param appSettings object = {}
 
@@ -39,7 +45,8 @@ resource site 'Microsoft.Web/sites@2023-12-01' = {
     serverFarmId: planId
     httpsOnly: true
     siteConfig: {
-      linuxFxVersion: 'PYTHON|3.12'
+      linuxFxVersion: linuxFxVersion
+      appCommandLine: empty(startupCommand) ? null : startupCommand
       appSettings: appSettingsArray
       connectionStrings: connectionStringsArray
       ftpsState: 'Disabled'

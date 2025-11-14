@@ -6,13 +6,15 @@ on:
     branches:
       - main
     paths:
-      - 'dotnet-gateway/**'
-      - '.github/workflows/deploy-gateway.yml'
+      - "dotnet-gateway/**"
+      - ".github/workflows/deploy-gateway.yml"
 
 env:
-  DOTNET_VERSION: '9.0.x'
-  WORKING_DIRECTORY: dotnet-gateway/src/Gateway.Api
-  ARTIFACT_NAME: gateway-api-publish
+  RESOURCE_GROUP: doc-rag
+  DEPLOYMENT_NAME: main
+  RESOURCE_PREFIX: docrag
+  ENVIRONMENT_NAME: dev
+  IMAGE_TAG: latest
 
 jobs:
   build-and-deploy:
@@ -22,33 +24,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Azure login
+        uses: azure/login@v2
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Restore dependencies
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: dotnet restore
+      - name: Resolve deployment outputs
+        id: outputs
+        run: |
+          REGISTRY_LOGIN_SERVER=$(az deployment group show \
+            --resource-group "${RESOURCE_GROUP}" \
+            --name "${DEPLOYMENT_NAME}" \
+            --query "properties.outputs.containerRegistryLoginServer.value" \
+            -o tsv)
+          echo "REGISTRY_LOGIN_SERVER=${REGISTRY_LOGIN_SERVER}" >> $GITHUB_ENV
+          echo "REGISTRY_NAME=${REGISTRY_LOGIN_SERVER%%.*}" >> $GITHUB_ENV
+          echo "GATEWAY_CONTAINER_APP=${RESOURCE_PREFIX}-${ENVIRONMENT_NAME}-gateway" >> $GITHUB_ENV
 
-      - name: Build
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: dotnet build --configuration Release --no-restore
+      - name: Docker login to ACR
+        run: az acr login --name "${REGISTRY_NAME}"
 
-      - name: Publish
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: dotnet publish --configuration Release --output publish
+      - name: Build gateway container image
+        run: |
+          docker build \
+            -f dotnet-gateway/Dockerfile \
+            -t "${REGISTRY_LOGIN_SERVER}/gateway-api:${IMAGE_TAG}" \
+            dotnet-gateway
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: ${{ env.WORKING_DIRECTORY }}/publish
+      - name: Push gateway image to ACR
+        run: docker push "${REGISTRY_LOGIN_SERVER}/gateway-api:${IMAGE_TAG}"
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: docrag-dev-api
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: ${{ env.WORKING_DIRECTORY }}/publish
-
+      - name: Update Gateway Container App
+        run: |
+          az containerapp update \
+            --name "${GATEWAY_CONTAINER_APP}" \
+            --resource-group "${RESOURCE_GROUP}" \
+            --image "${REGISTRY_LOGIN_SERVER}/gateway-api:${IMAGE_TAG}"

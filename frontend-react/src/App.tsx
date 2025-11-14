@@ -17,10 +17,13 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+  // Get base path from Vite config (for GitHub Pages)
+  const basePath = import.meta.env.BASE_URL || "/";
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={basePath}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<Layout />}>

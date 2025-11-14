@@ -126,8 +126,12 @@ class RAGService:
             # Step 1: Process document (load and chunk)
             chunks = self.document_processor.process_document(file_path)
 
-            # Step 2: Generate chunk IDs
+            # Step 2: Generate chunk IDs and add document_id to metadata
             chunk_ids = [generate_chunk_id(document_id, i) for i in range(len(chunks))]
+            
+            # Add document_id to each chunk's metadata for filtering
+            for chunk in chunks:
+                chunk.metadata["document_id"] = document_id
 
             # Step 3: Add to vector store
             self.vector_store.add_documents(chunks, document_ids=chunk_ids)
@@ -196,12 +200,22 @@ class RAGService:
         )
 
         # Step 2: Retrieve relevant chunks
+        # Build search kwargs with optional document_id filter
+        search_kwargs = {
+            "k": request.top_k * 2,
+            "fetch_k": 20,
+        }
+        
+        # Add document_id filter if provided
+        if request.document_id:
+            search_kwargs["filter"] = {"document_id": request.document_id}
+        elif request.filters:
+            # Use custom filters if provided
+            search_kwargs["filter"] = request.filters
+        
         retriever = self.vector_store.get_retriever(
             search_type="mmr",
-            search_kwargs={
-                "k": request.top_k * 2,
-                "fetch_k": 20,
-            },
+            search_kwargs=search_kwargs,
         )
 
         relevant_docs = retriever.invoke(enhanced_query)

@@ -22,7 +22,7 @@ A production-ready, enterprise-grade Document RAG system built for Azure Cloud, 
 │                    API GATEWAY LAYER                        │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │          .NET Gateway (ASP.NET Core 8)              │   │
-│  │          Azure App Service                          │   │
+│  │          Azure Container Apps                       │   │
 │  │          • Authentication & Authorization           │   │
 │  │          • Rate Limiting & Throttling               │   │
 │  │          • Response Caching (Redis)                 │   │
@@ -37,7 +37,7 @@ A production-ready, enterprise-grade Document RAG system built for Azure Cloud, 
 │                   RAG PROCESSING LAYER                      │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │       Python RAG API (FastAPI + LangChain)          │   │
-│  │          Azure App Service (Linux)                  │   │
+│  │          Azure Container Apps                       │   │
 │  │          • Document Processing                      │   │
 │  │          • Text Chunking & Embedding                │   │
 │  │          • Vector Search                            │   │
@@ -72,7 +72,7 @@ A production-ready, enterprise-grade Document RAG system built for Azure Cloud, 
 ### **Production-Grade Features**
 - **Security**: Authentication, authorization, API key management
 - **Performance**: Redis caching, rate limiting, optimized queries
-- **Scalability**: Horizontal scaling via App Services
+- **Scalability**: Horizontal scaling via Azure Container Apps
 - **Observability**: Application Insights, structured logging
 - **Cost-Effective**: Serverless frontend (SWA), auto-scaling backend
 
@@ -90,17 +90,17 @@ A production-ready, enterprise-grade Document RAG system built for Azure Cloud, 
 - **Auth**: Azure AD B2C / JWT
 - **Caching**: Redis (StackExchange.Redis)
 - **Rate Limiting**: AspNetCoreRateLimit
-- **Deployment**: Azure App Service (Windows/Linux)
+- **Deployment**: Azure Container Apps (Linux)
 
 ### Python RAG API
 - **Framework**: FastAPI + Pydantic v2
 - **AI/ML**: LangChain, Azure OpenAI SDK
 - **Vector Store**: Azure AI Search
 - **Document Processing**: pypdf, python-docx, unstructured
-- **Deployment**: Azure App Service (Linux)
+- **Deployment**: Azure Container Apps (Linux)
 
 ### Azure Services
-- **Compute**: App Services, Static Web Apps
+- **Compute**: Azure Container Apps, Static Web Apps
 - **AI**: Azure OpenAI, Azure AI Search
 - **Storage**: Blob Storage, Cosmos DB
 - **Caching**: Azure Cache for Redis
@@ -138,30 +138,129 @@ python main.py
 
 ### Azure Deployment
 ```bash
-# Login to Azure
+# Login & choose subscription
 az login
+az account set --subscription <subscription-id>
 
-# Deploy infrastructure
+# Create (or reuse) the resource group
+RESOURCE_GROUP=doc-rag
+az group create --name $RESOURCE_GROUP --location eastus
+
+# Deploy infrastructure (Gateway + Python APIs + ACR + Static Web App + Redis + Cosmos + Search)
 cd infrastructure/bicep
-az deployment sub create --location eastus --template-file main.bicep
-
-# Deploy applications
+az deployment group create \
+  --resource-group $RESOURCE_GROUP \
+  --name main \
+  --template-file main.bicep \
+  --parameters tenantId=<your-tenant-id> \
+               resourcePrefix=docrag \
+               environment=dev \
+               location=eastus \
+               openAiLocation=eastus \
+               deployPythonApi=true \
+               deployStaticWebApp=true \
+               deploySearch=true \
+               staticWebAppLocation=eastus2
 cd ../..
-./scripts/deploy-all.sh
+
+# Capture outputs
+REGISTRY_LOGIN_SERVER=$(az deployment group show \
+  --resource-group $RESOURCE_GROUP \
+  --name main \
+  --query "properties.outputs.containerRegistryLoginServer.value" \
+  -o tsv)
+RESOURCE_PREFIX=$(az deployment group show \
+  --resource-group $RESOURCE_GROUP \
+  --name main \
+  --query "properties.parameters.resourcePrefix.value" \
+  -o tsv)
+ENVIRONMENT_NAME=$(az deployment group show \
+  --resource-group $RESOURCE_GROUP \
+  --name main \
+  --query "properties.parameters.environment.value" \
+  -o tsv)
+PYTHON_CONTAINER_APP=${RESOURCE_PREFIX}-${ENVIRONMENT_NAME}-rag
+GATEWAY_CONTAINER_APP=${RESOURCE_PREFIX}-${ENVIRONMENT_NAME}-gateway
+
+# Authenticate docker to ACR (admin disabled)
+az acr login --name ${REGISTRY_LOGIN_SERVER%%.*}
+
+# Build & push images
+docker build -f dotnet-gateway/Dockerfile -t ${REGISTRY_LOGIN_SERVER}/gateway-api:latest dotnet-gateway
+docker push ${REGISTRY_LOGIN_SERVER}/gateway-api:latest
+
+docker build -t ${REGISTRY_LOGIN_SERVER}/python-rag:latest python-rag-api
+docker push ${REGISTRY_LOGIN_SERVER}/python-rag:latest
+
+# Update Container Apps to pull the latest image tags
+az containerapp update \
+  --name $GATEWAY_CONTAINER_APP \
+  --resource-group $RESOURCE_GROUP \
+  --image ${REGISTRY_LOGIN_SERVER}/gateway-api:latest
+
+az containerapp update \
+  --name $PYTHON_CONTAINER_APP \
+  --resource-group $RESOURCE_GROUP \
+  --image ${REGISTRY_LOGIN_SERVER}/python-rag:latest
 ```
 
 ### CI/CD
 
-- The `.github/workflows/deploy-gateway.yml` workflow builds and deploys the .NET gateway to the `docrag-dev-api` Azure Web App whenever changes are pushed to `main`.
-- Configure the repository secret `AZURE_WEBAPP_PUBLISH_PROFILE` with the publish profile XML downloaded from the Azure portal to enable automated deployments.
+- `.github/workflows/deploy-gateway.yml` builds a Docker image for the gateway, pushes it to ACR, and updates the Azure Container App whenever `main` receives changes under `dotnet-gateway/**`.
+- The workflow expects an `AZURE_CREDENTIALS` secret (service principal JSON with `Contributor` on the resource group) and uses the parameters in the `env` block (`RESOURCE_GROUP`, `RESOURCE_PREFIX`, `ENVIRONMENT_NAME`, `DEPLOYMENT_NAME`) to locate the right resources.
+- A companion workflow for the Python API would follow the same pattern—build the container, push to ACR, and call `az containerapp update` for `${RESOURCE_PREFIX}-${ENVIRONMENT_NAME}-rag`.
+
+### Redeploying After Changes
+
+#### Gateway (.NET)
+- Push to `main` and let the `Deploy Gateway API` GitHub Actions workflow rebuild and redeploy automatically.
+- To run locally or from CI by hand:
+  ```bash
+  az acr login --name docrag34noh4zacr
+  docker buildx build \
+    --platform linux/amd64 \
+    -f dotnet-gateway/Dockerfile \
+    -t docrag34noh4zacr.azurecr.io/gateway-api:latest \
+    dotnet-gateway \
+    --push
+
+  az containerapp update \
+    --name docrag3-dev-gateway \
+    --resource-group doc-rag \
+    --image docrag34noh4zacr.azurecr.io/gateway-api:latest
+  ```
+
+#### Python RAG API
+- (Optional) Create a separate GitHub workflow mirroring the commands below.
+- Manual redeploy:
+  ```bash
+  az acr login --name docrag34noh4zacr
+  docker buildx build \
+    --platform linux/amd64 \
+    -f python-rag-api/Dockerfile \
+    -t docrag34noh4zacr.azurecr.io/python-rag:latest \
+    python-rag-api \
+    --push
+
+  az containerapp update \
+    --name docrag3-dev-rag \
+    --resource-group doc-rag \
+    --image docrag34noh4zacr.azurecr.io/python-rag:latest
+  ```
+
+#### Static Web App
+- Commits to `main` automatically trigger the Azure-generated build workflow (once the portal workflow file and token are configured).
+- If you need to redeploy manually, push to `main` or re-run the GitHub workflow `Azure Static Web Apps CI/CD`.
+
+> **Tip:** the Container Apps expect AMD64 images. Always build with `docker buildx build --platform linux/amd64 … --push` even on Apple Silicon Macs.
 
 ## 📁 Project Structure
 
 ```
 document-rag-azure/
 ├── frontend-react/          # React SPA (Azure SWA)
-├── dotnet-gateway/          # .NET API Gateway (App Service)
-├── python-rag-api/          # Python RAG API (App Service)
+├── dotnet-gateway/          # .NET API Gateway (Container App)
+├── python-rag-api/          # Python RAG API (Container App)
 ├── infrastructure/          # IaC (Bicep/Terraform)
 ├── docs/                    # Documentation
 └── .github/workflows/       # CI/CD Pipelines
